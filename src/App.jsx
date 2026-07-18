@@ -4,7 +4,7 @@ import LoginGate from "./LoginGate";
 import {
   Users, Plus, Search, Pencil, Trash2, ArrowLeft, Phone, MessageCircle,
   MapPin, Stethoscope, Accessibility, HeartHandshake, Calendar, Camera,
-  X, Check, User, IdCard, StickyNote, Moon, Bus, CalendarDays, ClipboardCheck,
+  X, Check, User, CreditCard, StickyNote, Moon, Bus, CalendarDays, ClipboardCheck,
   Clock, Link2, GripVertical, CheckCircle2, XCircle, MinusCircle, UserPlus,
   ChevronRight, Armchair, Navigation, Compass, AlertTriangle, Crosshair,
   Landmark, Flag, LocateFixed, FileText, Send, Settings2, RefreshCw, Eye,
@@ -548,7 +548,7 @@ function JamaahDetail({ j, list, onBack, onEdit, onDelete, onOpen }) {
         <div style={{ padding: "8px 24px 22px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0 40px" }}>
           <div>
             <Row icon={User} label="Jenis kelamin">{j.jenisKelamin || "—"}</Row>
-            <Row icon={IdCard} label="No. paspor">{j.noPaspor || "—"}</Row>
+            <Row icon={CreditCard} label="No. paspor">{j.noPaspor || "—"}</Row>
             <Row icon={Calendar} label="Tempat, tanggal lahir">
               {j.tempatLahir || "—"}, {tglPanjang(j.tanggalLahir)}
               {y != null && <span style={{ display: "inline-block", marginLeft: 8, background: C.goldSoft, color: C.goldDeep, fontWeight: 700, fontSize: 12, padding: "2px 8px", borderRadius: 8 }}>Usia {y} tahun{y >= 60 ? " · Lansia" : ""}</span>}
