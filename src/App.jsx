@@ -603,6 +603,8 @@ function AppInti({ pengguna }) {
 
   const [page, setPage] = useState("periode");
   const pasang = usePemasangan();
+  // Nama yang dipakai pada laporan & catatan — ambil dari nama akun, bukan email
+  const namaSaya = (akunSaya?.nama || "").trim() || pengguna.email?.split("@")[0] || "Pembimbing";
 
   // Pembimbing menyalin daftar ringkas agar bisa dibaca akun jamaah
   useEffect(() => {
@@ -748,7 +750,7 @@ function AppInti({ pengguna }) {
           <KartuSayaPage saya={sayaJamaah} simpan={simpanSayaJamaah} siap={siapSaya}
             akunSaya={akunSaya} pengguna={pengguna} tg={tg} pid={pid} periodeAktif={periodeAktif} />
         )}
-        {page === "jamaah" && <JamaahPage list={list} setList={setList} pengguna={pengguna} />}
+        {page === "jamaah" && <JamaahPage list={list} setList={setList} pengguna={pengguna} namaSaya={namaSaya} />}
         {page === "kontak" && <KontakPage list={bolehKelola ? list : direktori} bolehKelola={bolehKelola} />}
         {page === "bus" && <BisHotelPage list={bolehKelola ? list : direktori} seats={seats || {}} setSeats={setSeats} hotel={hotel} setHotel={setHotel} byId={byId} bolehKelola={bolehKelola} />}
         {page === "agenda" && <AgendaPage agenda={agenda} setAgenda={setAgenda} list={list} absen={absen} setAbsen={setAbsen} bolehKelola={bolehKelola} />}
@@ -756,7 +758,7 @@ function AppInti({ pengguna }) {
         {page === "lokasi" && <LokasiPage titikPenting={titikPenting} setTitikPenting={setTitikPenting} titikKumpul={titikKumpul} setTitikKumpul={setTitikKumpul} lokasi={lokasi} bolehKelola={bolehKelola} />}
         {page === "doa" && <DoaPage doa={doa} setDoa={setDoa} kategori={katDoa || []} setKategori={setKatDoa} bolehKelola={bolehKelola} />}
         {page === "fiqh" && <FiqhPage fiqh={fiqh} setFiqh={setFiqh} kategori={katFiqh || []} setKategori={setKatFiqh} bolehKelola={bolehKelola} />}
-        {page === "laporan" && <LaporanPage laporan={laporan} setLaporan={setLaporan} tg={{ ...tg, pencatat: tg?.pencatat || pengguna.email?.split("@")[0] || "" }} setTg={setTg} agenda={agenda} list={list} absen={absen} periodeAktif={periodeAktif} />}
+        {page === "laporan" && <LaporanPage laporan={laporan} setLaporan={setLaporan} tg={{ ...tg, pencatat: tg?.pencatat || namaSaya }} setTg={setTg} agenda={agenda} list={list} absen={absen} periodeAktif={periodeAktif} />}
         </>
         )}
       </main>
@@ -774,7 +776,7 @@ function AppInti({ pengguna }) {
 /* ============================================================
    JAMAAH PAGE
    ============================================================ */
-function JamaahPage({ list, setList, pengguna }) {
+function JamaahPage({ list, setList, pengguna, namaSaya }) {
   const [view, setView] = useState("list");
   const [selId, setSelId] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -783,7 +785,7 @@ function JamaahPage({ list, setList, pengguna }) {
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return s ? list.filter((j) => [j.nama, j.rombongan, j.noPaspor, j.tempatLahir].join(" ").toLowerCase().includes(s)) : list;
+    return s ? list.filter((j) => [j.nama, j.rombongan, j.tempatLahir, j.telepon].join(" ").toLowerCase().includes(s)) : list;
   }, [list, q]);
   const stats = useMemo(() => ({
     total: list.length,
@@ -802,7 +804,7 @@ function JamaahPage({ list, setList, pengguna }) {
   const perbarui = (id, ubah) => setList((l) => l.map((j) => (j.id === id ? { ...j, ...ubah } : j)));
 
   if (view === "detail" && selected)
-    return <JamaahDetail j={selected} list={list} pengguna={pengguna}
+    return <JamaahDetail j={selected} list={list} pengguna={pengguna} namaSaya={namaSaya}
       onBack={() => setView("list")} onEdit={() => { setEditing(selected); setView("form"); }}
       onDelete={() => remove(selected.id)} onOpen={(id) => { setSelId(id); }}
       onPerbarui={(ubah) => perbarui(selected.id, ubah)} />;
@@ -917,7 +919,7 @@ function RelasiChips({ j, list, onOpen, dark }) {
   );
 }
 
-function JamaahDetail({ j, list, onBack, onEdit, onDelete, onOpen, onPerbarui, pengguna }) {
+function JamaahDetail({ j, list, onBack, onEdit, onDelete, onOpen, onPerbarui, pengguna, namaSaya }) {
   const [tulisCatatan, setTulisCatatan] = useState(false);
   const [ubahCatatan, setUbahCatatan] = useState(null);
   const y = hitungUsia(j.tanggalLahir); const u = labelUsia(y);
@@ -953,7 +955,6 @@ function JamaahDetail({ j, list, onBack, onEdit, onDelete, onOpen, onPerbarui, p
         <div style={{ padding: "8px 24px 22px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0 40px" }}>
           <div>
             <Row icon={User} label="Jenis kelamin">{j.jenisKelamin || "—"}</Row>
-            <Row icon={CreditCard} label="No. paspor">{j.noPaspor || "—"}</Row>
             <Row icon={Calendar} label="Tempat, tanggal lahir">
               {j.tempatLahir || "—"}, {tglPanjang(j.tanggalLahir)}
               {y != null && <span style={{ display: "inline-block", marginLeft: 8, background: C.goldSoft, color: C.goldDeep, fontWeight: 700, fontSize: 12, padding: "2px 8px", borderRadius: 8 }}>Usia {y} tahun{y >= 60 ? " · Lansia" : ""}</span>}
@@ -997,7 +998,7 @@ function JamaahDetail({ j, list, onBack, onEdit, onDelete, onOpen, onPerbarui, p
       {tulisCatatan && (
         <CatatanHarianModal
           awal={ubahCatatan}
-          namaPencatat={pengguna?.email?.split("@")[0] || ""}
+          namaPencatat={namaSaya || ""}
           onClose={() => { setTulisCatatan(false); setUbahCatatan(null); }}
           onSimpan={(c) => {
             const lama = j.catatanHarian || [];
@@ -1156,7 +1157,7 @@ function CatatanHarianModal({ awal, namaPencatat, onClose, onSimpan }) {
 }
 
 function JamaahForm({ initial, list, onCancel, onSave }) {
-  const [f, setF] = useState(initial || { foto: null, nama: "", jenisKelamin: "Laki-laki", noPaspor: "", telepon: "", alamat: "", rombongan: "", tempatLahir: "", tanggalLahir: "", riwayatPenyakit: "", kursiRoda: false, catatan: "", relasi: [] });
+  const [f, setF] = useState(initial || { foto: null, nama: "", jenisKelamin: "Laki-laki", telepon: "", alamat: "", rombongan: "", tempatLahir: "", tanggalLahir: "", riwayatPenyakit: "", kursiRoda: false, catatan: "", relasi: [] });
   const fileRef = useRef(null);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const setRel = (i, k, v) => setF((s) => { const r = [...(s.relasi || [])]; r[i] = { ...r[i], [k]: v }; return { ...s, relasi: r }; });
@@ -1208,7 +1209,6 @@ function JamaahForm({ initial, list, onCancel, onSave }) {
           <div style={{ gridColumn: "1 / -1" }}><Label req>Nama lengkap</Label><input className="field" style={inputStyle} value={f.nama} onChange={(e) => set("nama", e.target.value)} placeholder="cth. Hj. Aminah Suryani" /></div>
           <div><Label>Jenis kelamin</Label><select className="field" style={inputStyle} value={f.jenisKelamin} onChange={(e) => set("jenisKelamin", e.target.value)}><option>Laki-laki</option><option>Perempuan</option></select></div>
           <div><Label>Rombongan</Label><input className="field" style={inputStyle} value={f.rombongan} onChange={(e) => set("rombongan", e.target.value)} placeholder="cth. A" /></div>
-          <div><Label>No. paspor</Label><input className="field" style={inputStyle} value={f.noPaspor} onChange={(e) => set("noPaspor", e.target.value)} placeholder="cth. C4839201" /></div>
           <div><Label>Telepon / WhatsApp</Label><input className="field" style={inputStyle} value={f.telepon} onChange={(e) => set("telepon", e.target.value)} placeholder="08xx-xxxx-xxxx" /></div>
           <div style={{ gridColumn: "1 / -1" }}><Label>Alamat</Label><input className="field" style={inputStyle} value={f.alamat} onChange={(e) => set("alamat", e.target.value)} placeholder="Kota / domisili" /></div>
         </Grid>
@@ -3099,7 +3099,7 @@ function FiqhForm({ initial, kategori, onCancel, onSave }) {
 /* ============================================================
    DARURAT — tombol panik
    ============================================================ */
-function DaruratPage({ lokasi, tg, darurat, setDarurat, pengguna, periodeAktif, setLaporan }) {
+function DaruratPage({ lokasi, tg, darurat, setDarurat, pengguna, namaSaya, periodeAktif, setLaporan }) {
   const [tahan, setTahan] = useState(0);        // 0..100
   const [proses, setProses] = useState(null);   // null | "jalan" | "selesai" | "gagal"
   const [pesanHasil, setPesanHasil] = useState([]);
@@ -3109,7 +3109,7 @@ function DaruratPage({ lokasi, tg, darurat, setDarurat, pengguna, periodeAktif, 
 
   const kontak = darurat?.kontak || [];
   const utama = kontak[0] || null;
-  const nama = pengguna?.email?.split("@")[0] || "Pembimbing";
+  const nama = namaSaya || "Pembimbing";
 
   const LAMA_TAHAN = 1500; // ms
 
@@ -4016,10 +4016,12 @@ function KartuSayaPage({ saya, simpan, siap, akunSaya, pengguna, tg, pid, period
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginTop: 16, paddingTop: 15, borderTop: "1px solid #ffffff22" }}>
-          <KartuInfo label="No. paspor" isi={saya.noPaspor} />
+          <KartuInfo label="Tempat, tanggal lahir" isi={
+            [saya.tempatLahir, saya.tanggalLahir ? tglRingkas(saya.tanggalLahir) : ""].filter(Boolean).join(", ")
+          } />
+          <KartuInfo label="Jenis kelamin" isi={saya.jenisKelamin} />
           <KartuInfo label="Telepon" isi={saya.telepon} />
-          <KartuInfo label="Golongan darah" isi={saya.golDarah} />
-          <KartuInfo label="Kontak keluarga" isi={saya.kontakDarurat} />
+          <KartuInfo label="Rombongan" isi={saya.rombongan} />
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { LogIn, UserPlus, Mail, KeyRound, AlertTriangle, Loader2, ArrowLeft } from "lucide-react";
-import { masuk, daftar, lupaSandi, pesanGalat } from "./cloud";
+import { LogIn, Mail, KeyRound, AlertTriangle, Loader2, ArrowLeft, ShieldCheck } from "lucide-react";
+import { masuk, lupaSandi, pesanGalat } from "./cloud";
 
 const C = {
   green: "#0f5c37", greenDeep: "#0a4327", greenSoft: "#e7f0ea",
@@ -9,10 +9,9 @@ const C = {
 };
 
 export default function LoginGate({ logo }) {
-  const [mode, setMode] = useState("masuk"); // masuk | daftar | lupa
+  const [mode, setMode] = useState("masuk"); // masuk | lupa
   const [email, setEmail] = useState("");
   const [sandi, setSandi] = useState("");
-  const [sandi2, setSandi2] = useState("");
   const [galat, setGalat] = useState("");
   const [info, setInfo] = useState("");
   const [sibuk, setSibuk] = useState(false);
@@ -21,11 +20,9 @@ export default function LoginGate({ logo }) {
     setGalat(""); setInfo("");
     if (!email.trim()) return setGalat("Email belum diisi.");
     if (mode !== "lupa" && sandi.length < 6) return setGalat("Kata sandi minimal 6 karakter.");
-    if (mode === "daftar" && sandi !== sandi2) return setGalat("Ulangi kata sandi tidak cocok.");
     setSibuk(true);
     try {
       if (mode === "masuk") await masuk(email, sandi);
-      else if (mode === "daftar") await daftar(email, sandi);
       else {
         await lupaSandi(email);
         setInfo(`Tautan atur ulang kata sandi sudah dikirim ke ${email.trim()}. Buka email tersebut, buat kata sandi baru, lalu kembali ke sini untuk masuk.`);
@@ -34,7 +31,7 @@ export default function LoginGate({ logo }) {
     setSibuk(false);
   };
 
-  const judul = mode === "masuk" ? "Masuk" : mode === "daftar" ? "Daftar Akun Pembimbing" : "Lupa Kata Sandi";
+  const judul = mode === "masuk" ? "Masuk" : "Lupa Kata Sandi";
   const inputStyle = {
     width: "100%", boxSizing: "border-box",
     padding: "13px 14px 13px 42px",
@@ -71,7 +68,7 @@ export default function LoginGate({ logo }) {
 
         <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: C.ink }}>{judul}</h2>
         <p style={{ margin: "0 0 18px", fontSize: 12.5, color: C.muted }}>
-          {mode === "masuk" ? "Untuk pembimbing dan jamaah." : mode === "daftar" ? "Buat akun untuk pembimbing baru." : "Berlaku untuk akun pembimbing maupun jamaah."}
+          {mode === "masuk" ? "Untuk pembimbing dan jamaah." : "Berlaku untuk akun pembimbing maupun jamaah."}
         </p>
 
         <div style={{ position: "relative", marginBottom: 12 }}>
@@ -84,15 +81,7 @@ export default function LoginGate({ logo }) {
           <div style={{ position: "relative", marginBottom: 12 }}>
             <KeyRound size={17} color={C.muted} style={{ position: "absolute", left: 14, top: 15, pointerEvents: "none" }} />
             <input className="lg-field" style={inputStyle} type="password" value={sandi} onChange={(e) => setSandi(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && kirim()} placeholder="Kata sandi" autoComplete={mode === "daftar" ? "new-password" : "current-password"} />
-          </div>
-        )}
-
-        {mode === "daftar" && (
-          <div style={{ position: "relative", marginBottom: 12 }}>
-            <KeyRound size={17} color={C.muted} style={{ position: "absolute", left: 14, top: 15, pointerEvents: "none" }} />
-            <input className="lg-field" style={inputStyle} type="password" value={sandi2} onChange={(e) => setSandi2(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && kirim()} placeholder="Ulangi kata sandi" autoComplete="new-password" />
+              onKeyDown={(e) => e.key === "Enter" && kirim()} placeholder="Kata sandi" autoComplete="current-password" />
           </div>
         )}
 
@@ -114,8 +103,8 @@ export default function LoginGate({ logo }) {
 
         <button className="lg-btn" onClick={kirim} disabled={sibuk}
           style={{ width: "100%", background: sibuk ? C.muted : C.green, color: "#fff", padding: "13px", borderRadius: 12, fontSize: 14.5 }}>
-          {sibuk ? <Loader2 size={18} className="lg-spin" /> : mode === "daftar" ? <UserPlus size={18} /> : <LogIn size={18} />}
-          {sibuk ? "Memproses…" : mode === "masuk" ? "Masuk" : mode === "daftar" ? "Daftar" : "Kirim Tautan"}
+          {sibuk ? <Loader2 size={18} className="lg-spin" /> : <LogIn size={18} />}
+          {sibuk ? "Memproses…" : mode === "masuk" ? "Masuk" : "Kirim Tautan"}
         </button>
 
         <div style={{ marginTop: 16, textAlign: "center", fontSize: 12.5, color: C.muted, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -125,7 +114,9 @@ export default function LoginGate({ logo }) {
                 style={{ width: "100%", background: C.bg, color: C.green, fontWeight: 700, fontSize: 13, padding: "11px", borderRadius: 11, border: `1px solid ${C.border}` }}>
                 <KeyRound size={15} /> Lupa kata sandi?
               </button>
-              <div style={{ marginTop: 2 }}>Pembimbing baru? <button className="lg-btn" onClick={() => { setMode("daftar"); setGalat(""); setInfo(""); }} style={{ background: "none", color: C.green, fontSize: 12.5, padding: 0, fontWeight: 700 }}>Daftar di sini</button></div>
+              <div style={{ marginTop: 2, fontSize: 12, lineHeight: 1.55 }}>
+                Belum punya akun? Hubungi pembimbing Anda untuk dibuatkan.
+              </div>
             </>
           )}
           {mode !== "masuk" && (
@@ -134,7 +125,10 @@ export default function LoginGate({ logo }) {
         </div>
 
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}`, fontSize: 11.5, color: C.muted, lineHeight: 1.5 }}>
-          Aplikasi ini menyimpan data pribadi dan kesehatan jamaah. Mohon jaga kerahasiaan akun Anda dan jangan bagikan kata sandi.
+          <span style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
+            <ShieldCheck size={14} color={C.green} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>Akun hanya dibuat oleh pembimbing. Aplikasi ini menyimpan data pribadi dan kesehatan jamaah — mohon jaga kerahasiaan akun Anda dan jangan bagikan kata sandi.</span>
+          </span>
         </div>
       </div>
     </div>
