@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { doc, collection, onSnapshot, setDoc, deleteDoc, getDocs, writeBatch } from "firebase/firestore";
 import { initializeApp, getApp, deleteApp } from "firebase/app";
 import {
-  onAuthStateChanged, signInWithEmailAndPassword,
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, signOut, sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth, db } from "./firebase";
