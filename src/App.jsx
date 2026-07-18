@@ -589,6 +589,8 @@ function AppInti({ pengguna }) {
 
   const [page, setPage] = useState("periode");
   const pasang = usePemasangan();
+  const lokasi = useLokasiGlobal();
+  const [darurat, setDarurat] = useDataTersinkron("darurat", { kontak: [] });
 
   const byId = (id) => list.find((j) => j.id === Number(id));
 
@@ -602,6 +604,7 @@ function AppInti({ pengguna }) {
     { id: "doa", label: "Doa", icon: BookOpen },
     { id: "fiqh", label: "Fiqh", icon: Scale },
     { id: "laporan", label: "Laporan", icon: FileText },
+    { id: "darurat", label: "Darurat", icon: AlertOctagon, merah: true },
   ];
   // Halaman yang butuh periode aktif
   const perluPeriode = ["jamaah", "bus", "agenda", "absensi", "lokasi", "laporan"];
@@ -625,6 +628,12 @@ function AppInti({ pengguna }) {
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             <DualClock />
             <div style={{ display: "flex", alignItems: "center", gap: 9, paddingLeft: 16, borderLeft: "1px solid #ffffff22" }}>
+              {lokasi.aktif && (
+                <span title="Lokasi sedang aktif" style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#ffffff22", color: "#7fd0a3", padding: "6px 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 99, background: "#7fd0a3" }} />
+                  <span className="sembunyi-hp">Lokasi aktif</span>
+                </span>
+              )}
               {pasang.bisa && (
                 <button className="btn" onClick={pasang.pasang} title="Pasang aplikasi di HP"
                   style={{ background: C.gold, color: "#3a2c05", padding: "8px 13px", borderRadius: 11, fontSize: 12.5 }}>
@@ -649,7 +658,11 @@ function AppInti({ pengguna }) {
             const on = page === n.id;
             return (
               <button key={n.id} className="btn navtab" onClick={() => setPage(n.id)}
-                style={{ position: "relative", background: "transparent", color: on ? C.green : C.muted, padding: "14px 16px", borderBottom: `3px solid ${on ? C.green : "transparent"}`, borderRadius: 0, fontWeight: on ? 800 : 600, whiteSpace: "nowrap" }}>
+                style={{ position: "relative", background: "transparent",
+                  color: n.merah ? C.danger : (on ? C.green : C.muted),
+                  padding: "14px 16px",
+                  borderBottom: `3px solid ${on ? (n.merah ? C.danger : C.green) : "transparent"}`,
+                  borderRadius: 0, fontWeight: on || n.merah ? 800 : 600, whiteSpace: "nowrap" }}>
                 <n.icon size={17} /> {n.label}
                 {n.alert && <span style={{ position: "absolute", top: 9, right: 6, width: 8, height: 8, borderRadius: 99, background: C.danger }} />}
               </button>
@@ -678,7 +691,10 @@ function AppInti({ pengguna }) {
       )}
 
       <main className="wrap">
-        {page !== "periode" && perluPeriode.includes(page) && !periodeAktif ? (
+        {page === "darurat" ? (
+          <DaruratPage lokasi={lokasi} tg={tg} darurat={darurat || { kontak: [] }} setDarurat={setDarurat}
+            pengguna={pengguna} periodeAktif={periodeAktif} setLaporan={setLaporan} />
+        ) : page !== "periode" && perluPeriode.includes(page) && !periodeAktif ? (
           <TanpaPeriode onBuka={() => setPage("periode")} />
         ) : (
         <>
@@ -690,7 +706,7 @@ function AppInti({ pengguna }) {
         {page === "bus" && <BusPage list={list} seats={seats} setSeats={setSeats} byId={byId} />}
         {page === "agenda" && <AgendaPage agenda={agenda} setAgenda={setAgenda} list={list} absen={absen} setAbsen={setAbsen} />}
         {page === "absensi" && <AbsensiPage agenda={agenda} list={list} absen={absen} setAbsen={setAbsen} />}
-        {page === "lokasi" && <LokasiPage list={list} titikPenting={titikPenting} setTitikPenting={setTitikPenting} titikKumpul={titikKumpul} setTitikKumpul={setTitikKumpul} missing={missing} setMissing={setMissing} />}
+        {page === "lokasi" && <LokasiPage list={list} titikPenting={titikPenting} setTitikPenting={setTitikPenting} titikKumpul={titikKumpul} setTitikKumpul={setTitikKumpul} missing={missing} setMissing={setMissing} lokasi={lokasi} />}
         {page === "doa" && <DoaPage doa={doa} setDoa={setDoa} kategori={katDoa || []} setKategori={setKatDoa} />}
         {page === "fiqh" && <FiqhPage fiqh={fiqh} setFiqh={setFiqh} kategori={katFiqh || []} setKategori={setKatFiqh} />}
         {page === "laporan" && <LaporanPage laporan={laporan} setLaporan={setLaporan} tg={{ ...tg, pencatat: tg?.pencatat || pengguna.email?.split("@")[0] || "" }} setTg={setTg} agenda={agenda} list={list} absen={absen} missing={missing} periodeAktif={periodeAktif} />}
@@ -799,13 +815,24 @@ function JamaahPage({ list, setList, pengguna }) {
                   {j.kursiRoda && <Badge bg={C.blueSoft} color={C.blue} icon={Accessibility}>Kursi roda</Badge>}
                   {j.riwayatPenyakit && !/^tidak ada/i.test(j.riwayatPenyakit.trim()) && <Badge bg={C.dangerSoft} color={C.danger} icon={Stethoscope}>Ada riwayat</Badge>}
                   {relCount > 0 && <Badge bg={C.greenSoft} color={C.green} icon={Link2}>Keluarga ({relCount})</Badge>}
-                  {(() => {
-                    const t = catatanTerakhir(j);
-                    if (!t || !KONDISI[t.kondisi]) return null;
-                    const k = KONDISI[t.kondisi];
-                    return <Badge bg={k.latar} color={k.warna} icon={k.ikon}>{k.label}</Badge>;
-                  })()}
                 </div>
+                {(() => {
+                  const t = catatanTerakhir(j);
+                  if (!t || !KONDISI[t.kondisi]) return null;
+                  const k = KONDISI[t.kondisi];
+                  const jml = (j.catatanHarian || []).length;
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, background: k.latar, borderRadius: 11, padding: "8px 11px", borderLeft: `3px solid ${k.warna}` }}>
+                      <k.ikon size={15} color={k.warna} style={{ flexShrink: 0 }} />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: k.warna, lineHeight: 1.3 }}>{k.label}</div>
+                        <div style={{ fontSize: 10.5, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {t.tanggal ? tglRingkas(t.tanggal) : "—"} · {jml} catatan
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${C.border}`, paddingTop: 11 }}>
                   <span style={{ fontSize: 12.5, color: C.muted, display: "inline-flex", alignItems: "center", gap: 5 }}><Phone size={13} /> {j.telepon || "—"}</span>
                   <ContactBtns tel={j.telepon} stop />
@@ -818,6 +845,9 @@ function JamaahPage({ list, setList, pengguna }) {
     </div>
   );
 }
+
+const jamWIB = (iso) => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+const jamAST = (iso) => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Riyadh", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 
 const catatanTerakhir = (j) => {
   const c = j?.catatanHarian || [];
@@ -959,7 +989,13 @@ function RiwayatCatatan({ j, onUbah, onHapus }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 800, color: k.warna }}>{k.label}</span>
-                <span style={{ fontSize: 11.5, color: C.muted }}>{c.tanggal ? tglRingkas(c.tanggal) : "—"}{c.waktu ? ` · ${c.waktu}` : ""}</span>
+                <span style={{ fontSize: 11.5, color: C.muted }}>{c.tanggal ? tglRingkas(c.tanggal) : "—"}</span>
+                {c.waktuISO && (
+                  <span style={{ display: "inline-flex", gap: 7, fontSize: 11, color: C.muted, alignItems: "center" }}>
+                    <span style={{ background: C.bg, padding: "2px 7px", borderRadius: 6 }}>WIB {jamWIB(c.waktuISO)}</span>
+                    <span style={{ background: C.goldSoft, color: C.goldDeep, padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>AST {jamAST(c.waktuISO)}</span>
+                  </span>
+                )}
               </div>
               {c.isi && <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{c.isi}</div>}
               {(c.suhu || c.tensi || c.obat) && (
@@ -983,20 +1019,26 @@ function RiwayatCatatan({ j, onUbah, onHapus }) {
 }
 
 function CatatanHarianModal({ awal, namaPencatat, onClose, onSimpan }) {
-  const hariIni = new Date().toISOString().slice(0, 10);
-  const jamIni = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+  const sekarang = new Date();
+  const hariIni = `${sekarang.getFullYear()}-${String(sekarang.getMonth() + 1).padStart(2, "0")}-${String(sekarang.getDate()).padStart(2, "0")}`;
+  const jamIni = `${String(sekarang.getHours()).padStart(2, "0")}:${String(sekarang.getMinutes()).padStart(2, "0")}`;
+
   const [f, setF] = useState(awal || {
     tanggal: hariIni, waktu: jamIni, kondisi: "sehat", isi: "",
     suhu: "", tensi: "", obat: "", pencatat: namaPencatat,
-    waktuISO: new Date().toISOString(),
+    waktuISO: sekarang.toISOString(),
   });
+  const [ubahWaktu, setUbahWaktu] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const bisa = f.isi.trim() || f.suhu || f.tensi || f.obat;
 
-  const simpan = () => {
-    const waktuISO = new Date(`${f.tanggal}T${(f.waktu || "00:00")}:00`).toISOString();
-    onSimpan({ ...f, waktuISO });
-  };
+  // Waktu yang sedang dipilih, untuk ditampilkan dalam dua zona
+  const isoPilihan = useMemo(() => {
+    const d = new Date(`${f.tanggal}T${f.waktu || "00:00"}:00`);
+    return isNaN(d) ? new Date().toISOString() : d.toISOString();
+  }, [f.tanggal, f.waktu]);
+
+  const simpan = () => onSimpan({ ...f, waktuISO: isoPilihan });
 
   return (
     <Modal onClose={onClose} width={440}>
@@ -1023,10 +1065,34 @@ function CatatanHarianModal({ awal, namaPencatat, onClose, onSimpan }) {
           })}
         </div>
 
-        <Grid>
-          <div><Label>Tanggal</Label><input className="field" type="date" style={inputStyle} value={f.tanggal} onChange={(e) => set("tanggal", e.target.value)} /></div>
-          <div><Label>Waktu</Label><input className="field" type="time" style={inputStyle} value={f.waktu} onChange={(e) => set("waktu", e.target.value)} /></div>
-        </Grid>
+        <Label>Waktu pencatatan</Label>
+        <div style={{ background: C.bg, borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 9, display: "flex", alignItems: "center", gap: 7 }}>
+            <CalendarDays size={15} color={C.green} /> {tglPanjang(f.tanggal)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+            <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 11px" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".05em", color: C.muted, textTransform: "uppercase", marginBottom: 3 }}>WIB · Jakarta</div>
+              <div style={{ fontSize: 19, fontWeight: 800, color: C.green, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{jamWIB(isoPilihan)}</div>
+            </div>
+            <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: "9px 11px" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".05em", color: C.goldDeep, textTransform: "uppercase", marginBottom: 3 }}>AST · Makkah</div>
+              <div style={{ fontSize: 19, fontWeight: 800, color: C.goldDeep, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{jamAST(isoPilihan)}</div>
+            </div>
+          </div>
+
+          {!ubahWaktu ? (
+            <button className="btn" onClick={() => setUbahWaktu(true)}
+              style={{ background: "transparent", color: C.muted, padding: "8px 0 0", fontSize: 12, fontWeight: 600 }}>
+              <Pencil size={12} /> Ubah tanggal / waktu
+            </button>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+              <input className="field" type="date" style={inputStyle} value={f.tanggal} onChange={(e) => set("tanggal", e.target.value)} />
+              <input className="field" type="time" style={inputStyle} value={f.waktu} onChange={(e) => set("waktu", e.target.value)} />
+            </div>
+          )}
+        </div>
 
         <div style={{ marginTop: 14 }}>
           <Label>Catatan</Label>
@@ -1546,26 +1612,70 @@ function AbsensiPage({ agenda, list, absen, setAbsen }) {
    LOKASI PAGE — jarak & arah dari HP pembimbing
    ============================================================ */
 /* ---------- kompas: arah hadap HP ----------
-   Membaca sensor magnetometer supaya panah menunjuk arah
-   yang benar walau HP diputar.
+   Memakai perhitungan terkoreksi kemiringan (tilt-compensated)
+   supaya arah tetap tepat walau HP dimiringkan, ditambah
+   peredam getaran agar panah tidak bergoyang-goyang.
 -------------------------------------------- */
+const DEG = Math.PI / 180;
+
+// Menghitung arah kompas sebenarnya dari kemiringan perangkat
+function hitungArahKompas(alpha, beta, gamma) {
+  if (alpha == null) return null;
+  const x = (beta || 0) * DEG, y = (gamma || 0) * DEG, z = alpha * DEG;
+  const cX = Math.cos(x), cY = Math.cos(y), cZ = Math.cos(z);
+  const sX = Math.sin(x), sY = Math.sin(y), sZ = Math.sin(z);
+  const Vx = -cZ * sY - sZ * sX * cY;
+  const Vy = -sZ * sY + cZ * sX * cY;
+  let arah = Math.atan2(Vx, Vy) * (180 / Math.PI);
+  return ((arah % 360) + 360) % 360;
+}
+
+const sudutLayar = () => {
+  const o = window.screen?.orientation?.angle;
+  if (typeof o === "number") return o;
+  if (typeof window.orientation === "number") return window.orientation;
+  return 0;
+};
+
+// Rata-rata melingkar supaya peralihan 359° → 0° tidak melompat
+function haluskanArah(lama, baru, bobot = 0.25) {
+  if (lama == null) return baru;
+  let selisih = ((baru - lama + 540) % 360) - 180;
+  return ((lama + selisih * bobot) % 360 + 360) % 360;
+}
+
 function useArahHP() {
-  const [arah, setArah] = useState(null);      // 0 = utara, searah jarum jam
-  const [status, setStatus] = useState("mati"); // mati | aktif | ditolak | tidakAda
-  const pasangRef = useRef(null);
+  const [arah, setArah] = useState(null);
+  const [status, setStatus] = useState("mati"); // mati | aktif | menunggu | ditolak | tidakAda
+  const [andal, setAndal] = useState(true);
+  const halusRef = useRef(null);
+  const jenisRef = useRef(null);
+  const bingkaiRef = useRef(null);
 
   const tangani = (e) => {
     let h = null;
-    // iOS menyediakan nilai siap pakai
+
     if (typeof e.webkitCompassHeading === "number" && !isNaN(e.webkitCompassHeading)) {
+      // iOS: sudah berupa arah kompas sejati
       h = e.webkitCompassHeading;
-    } else if (typeof e.alpha === "number" && e.alpha !== null) {
-      // Android: alpha berlawanan arah jarum jam dari utara
-      h = 360 - e.alpha;
-      const layar = window.screen?.orientation?.angle ?? window.orientation ?? 0;
-      h = h + (typeof layar === "number" ? layar : 0);
+      setAndal(e.webkitCompassAccuracy == null || e.webkitCompassAccuracy >= 0);
+    } else if (e.alpha != null) {
+      h = hitungArahKompas(e.alpha, e.beta, e.gamma);
+      // Sesuaikan bila layar diputar (mode lanskap)
+      if (h != null) h = (h + sudutLayar() + 360) % 360;
+      setAndal(e.absolute === true || jenisRef.current === "deviceorientationabsolute");
     }
-    if (h != null && !isNaN(h)) setArah(((h % 360) + 360) % 360);
+
+    if (h == null || isNaN(h)) return;
+    halusRef.current = haluskanArah(halusRef.current, ((h % 360) + 360) % 360);
+
+    // Perbarui tampilan maksimal sekali per bingkai layar
+    if (bingkaiRef.current) return;
+    bingkaiRef.current = requestAnimationFrame(() => {
+      bingkaiRef.current = null;
+      setArah(halusRef.current);
+      setStatus((st) => (st === "menunggu" ? "aktif" : st));
+    });
   };
 
   const nyalakan = async () => {
@@ -1579,49 +1689,97 @@ function useArahHP() {
       }
     } catch { setStatus("ditolak"); return; }
 
+    // Utamakan sensor yang mengacu ke utara sejati
     const jenis = "ondeviceorientationabsolute" in window ? "deviceorientationabsolute" : "deviceorientation";
+    jenisRef.current = jenis;
     window.addEventListener(jenis, tangani, true);
-    pasangRef.current = jenis;
-    setStatus("aktif");
+    setStatus("menunggu");
+
+    // Kalau versi absolut tidak mengirim data, pakai versi biasa
+    if (jenis === "deviceorientationabsolute") {
+      setTimeout(() => {
+        if (halusRef.current == null) {
+          window.addEventListener("deviceorientation", tangani, true);
+          jenisRef.current = "keduanya";
+        }
+      }, 1200);
+    }
   };
 
   const matikan = () => {
-    if (pasangRef.current) window.removeEventListener(pasangRef.current, tangani, true);
-    pasangRef.current = null;
+    window.removeEventListener("deviceorientationabsolute", tangani, true);
+    window.removeEventListener("deviceorientation", tangani, true);
+    if (bingkaiRef.current) cancelAnimationFrame(bingkaiRef.current);
+    bingkaiRef.current = null;
+    halusRef.current = null;
+    jenisRef.current = null;
     setArah(null);
     setStatus("mati");
   };
 
-  useEffect(() => () => { if (pasangRef.current) window.removeEventListener(pasangRef.current, tangani, true); }, []);
+  useEffect(() => () => {
+    window.removeEventListener("deviceorientationabsolute", tangani, true);
+    window.removeEventListener("deviceorientation", tangani, true);
+    if (bingkaiRef.current) cancelAnimationFrame(bingkaiRef.current);
+  }, []);
 
-  return { arah, status, nyalakan, matikan };
+  return { arah, status, andal, nyalakan, matikan };
 }
 
-function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitikKumpul, missing, setMissing }) {
+/* ---------- lokasi yang tetap hidup antar halaman ---------- */
+function useLokasiGlobal() {
   const [pos, setPos] = useState(null);
-  const [tracking, setTracking] = useState(false);
-  const [errMsg, setErrMsg] = useState("");
-  const [modal, setModal] = useState(null); // 'tersesat' | 'penting' | 'kumpul'
-  const watchIdRef = useRef(null);
+  const [aktif, setAktif] = useState(false);
+  const [galat, setGalat] = useState("");
+  const idRef = useRef(null);
   const kompas = useArahHP();
 
-  useEffect(() => () => { if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current); }, []);
-
-  const mulaiLokasi = () => {
-    if (!navigator.geolocation) { setErrMsg("Perangkat/browser ini tidak mendukung deteksi lokasi."); return; }
-    if (!window.isSecureContext) { setErrMsg("Deteksi lokasi butuh koneksi aman (HTTPS). Fitur ini akan aktif setelah aplikasi di-deploy dengan HTTPS."); }
-    setErrMsg(""); setTracking(true);
+  const nyalakan = () => {
+    if (!navigator.geolocation) { setGalat("Perangkat/browser ini tidak mendukung deteksi lokasi."); return; }
+    if (idRef.current != null) return;
+    setGalat(""); setAktif(true);
     kompas.nyalakan();
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (p) => { setPos({ lat: p.coords.latitude, lng: p.coords.longitude, akurasi: p.coords.accuracy }); setErrMsg(""); },
-      (err) => { setTracking(false); setErrMsg(err.code === 1 ? "Izin lokasi ditolak. Aktifkan izin lokasi untuk situs ini di pengaturan browser HP." : "Gagal membaca lokasi. Pastikan GPS aktif dan coba lagi."); },
-      { enableHighAccuracy: true, maximumAge: 4000, timeout: 15000 }
+    idRef.current = navigator.geolocation.watchPosition(
+      (p) => { setPos({ lat: p.coords.latitude, lng: p.coords.longitude, akurasi: p.coords.accuracy, waktu: p.timestamp }); setGalat(""); },
+      (err) => {
+        setAktif(false); idRef.current = null;
+        setGalat(err.code === 1
+          ? "Izin lokasi ditolak. Aktifkan izin lokasi untuk situs ini di pengaturan browser HP."
+          : "Gagal membaca lokasi. Pastikan GPS aktif dan coba lagi.");
+      },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 }
     );
   };
-  const berhentiLokasi = () => {
-    if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
-    watchIdRef.current = null; setTracking(false); kompas.matikan();
+
+  const matikan = () => {
+    if (idRef.current != null) navigator.geolocation.clearWatch(idRef.current);
+    idRef.current = null;
+    setAktif(false);
+    kompas.matikan();
   };
+
+  // Ambil posisi sekali saja (untuk tombol darurat, tanpa perlu menyalakan pemantauan)
+  const ambilSekali = () => new Promise((selesai, gagal) => {
+    if (pos) return selesai(pos);
+    if (!navigator.geolocation) return gagal(new Error("Perangkat tidak mendukung deteksi lokasi."));
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const n = { lat: p.coords.latitude, lng: p.coords.longitude, akurasi: p.coords.accuracy, waktu: p.timestamp };
+        setPos(n); selesai(n);
+      },
+      (e) => gagal(new Error(e.code === 1 ? "Izin lokasi ditolak." : "Gagal membaca lokasi.")),
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  });
+
+  useEffect(() => () => { if (idRef.current != null) navigator.geolocation.clearWatch(idRef.current); }, []);
+
+  return { pos, aktif, galat, nyalakan, matikan, ambilSekali, kompas };
+}
+
+function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitikKumpul, missing, setMissing, lokasi }) {
+  const [modal, setModal] = useState(null); // 'tersesat' | 'penting' | 'kumpul'
+  const { pos, aktif: tracking, galat: errMsg, nyalakan: mulaiLokasi, matikan: berhentiLokasi, kompas } = lokasi;
 
   const missingEnriched = missing.map((m) => ({ ...m, jamaah: list.find((j) => j.id === m.jamaahId) })).filter((m) => m.jamaah);
 
@@ -1647,9 +1805,9 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
             <div style={{ fontSize: 12, marginTop: 5, display: "flex", alignItems: "center", gap: 6, color: kompas.status === "aktif" ? C.green : C.muted, flexWrap: "wrap" }}>
               <Compass size={13} />
               {kompas.status === "aktif" && kompas.arah != null
-                ? <>Kompas aktif — HP menghadap {arahMataAngin(kompas.arah)} ({Math.round(kompas.arah)}°). Panah sudah menyesuaikan arah HP.</>
-                : kompas.status === "aktif"
-                ? <>Membaca sensor arah… coba putar HP membentuk angka 8.</>
+                ? <>Kompas aktif — HP menghadap {arahMataAngin(kompas.arah)} ({Math.round(kompas.arah)}°).{!kompas.andal && " Akurasi rendah — gerakkan HP membentuk angka 8 untuk kalibrasi."}</>
+                : kompas.status === "menunggu"
+                ? <>Membaca sensor arah… gerakkan HP membentuk angka 8 untuk kalibrasi.</>
                 : kompas.status === "ditolak"
                 ? <>Izin sensor arah ditolak — panah memakai arah dari Utara.</>
                 : <>Sensor arah tidak tersedia — panah memakai arah dari Utara.
@@ -2833,6 +2991,272 @@ function FiqhForm({ initial, kategori, onCancel, onSave }) {
           <button className="btn" onClick={onCancel} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "11px 20px", borderRadius: 12 }}>Batal</button>
           <button className="btn" disabled={!canSave} onClick={() => onSave(f)} style={{ background: canSave ? C.green : C.border, color: "#fff", padding: "11px 24px", borderRadius: 12, cursor: canSave ? "pointer" : "not-allowed" }}><Check size={18} /> Simpan</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   DARURAT — tombol panik
+   ============================================================ */
+function DaruratPage({ lokasi, tg, darurat, setDarurat, pengguna, periodeAktif, setLaporan }) {
+  const [tahan, setTahan] = useState(0);        // 0..100
+  const [proses, setProses] = useState(null);   // null | "jalan" | "selesai" | "gagal"
+  const [pesanHasil, setPesanHasil] = useState([]);
+  const [atur, setAtur] = useState(false);
+  const timerRef = useRef(null);
+  const mulaiRef = useRef(0);
+
+  const kontak = darurat?.kontak || [];
+  const utama = kontak[0] || null;
+  const nama = pengguna?.email?.split("@")[0] || "Pembimbing";
+
+  const LAMA_TAHAN = 1500; // ms
+
+  const mulaiTahan = () => {
+    if (proses === "jalan") return;
+    mulaiRef.current = Date.now();
+    timerRef.current = setInterval(() => {
+      const lewat = Date.now() - mulaiRef.current;
+      const persen = Math.min(100, (lewat / LAMA_TAHAN) * 100);
+      setTahan(persen);
+      if (persen >= 100) { hentikanTahan(); kirimDarurat(); }
+    }, 30);
+  };
+  const hentikanTahan = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+    setTahan(0);
+  };
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  const kirimDarurat = async () => {
+    setProses("jalan");
+    setPesanHasil([]);
+    const hasil = [];
+    let p = null;
+
+    // 1. Ambil koordinat
+    try {
+      p = await lokasi.ambilSekali();
+      hasil.push({ ok: true, teks: `Koordinat didapat (±${Math.round(p.akurasi)} m)` });
+    } catch (e) {
+      hasil.push({ ok: false, teks: "Koordinat gagal diambil: " + (e.message || "tidak diketahui") });
+    }
+
+    const waktuISO = new Date().toISOString();
+    const barisLokasi = p
+      ? `📍 Koordinat: ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}\n🗺 Peta: ${mapsCari(p.lat, p.lng)}`
+      : "📍 Koordinat tidak tersedia (GPS mati atau izin ditolak)";
+
+    const isiPesan = [
+      "🚨 <b>SINYAL DARURAT — KBIH IBNU AQIL</b>",
+      "━━━━━━━━━━━━━━",
+      periodeAktif ? `Periode: ${escHtml(periodeAktif.nama)}` : "",
+      `Dikirim oleh: <b>${escHtml(nama)}</b>`,
+      "",
+      barisLokasi,
+      "",
+      `🕐 ${waktuLapWIB(waktuISO)} WIB · ${waktuLapAST(waktuISO)} AST`,
+      "",
+      "<i>Mohon segera dihubungi.</i>",
+    ].filter(Boolean).join("\n");
+
+    // 2. Kirim ke Telegram
+    if (tg?.token && tg?.chatId) {
+      try {
+        await kirimTelegram(tg.token, tg.chatId, isiPesan);
+        hasil.push({ ok: true, teks: "Pesan darurat terkirim ke grup Telegram" });
+      } catch (e) {
+        hasil.push({ ok: false, teks: "Telegram gagal: " + (e.message || "tidak diketahui") });
+      }
+    } else {
+      hasil.push({ ok: false, teks: "Telegram belum diatur — buka halaman Laporan untuk mengaturnya" });
+    }
+
+    // 3. Catat ke riwayat laporan
+    try {
+      setLaporan((l) => [{
+        id: Date.now(),
+        jenis: "Darurat",
+        judul: "Sinyal darurat ditekan",
+        isi: [
+          "Tombol darurat ditekan dari halaman Darurat.",
+          p ? `Koordinat: ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)} (±${Math.round(p.akurasi)} m)` : "Koordinat tidak tersedia.",
+          p ? `Peta: ${mapsCari(p.lat, p.lng)}` : "",
+        ].filter(Boolean).join("\n"),
+        pencatat: nama,
+        waktuISO,
+        status: tg?.token && tg?.chatId ? "terkirim" : "lokal",
+      }, ...l]);
+      hasil.push({ ok: true, teks: "Tercatat di riwayat laporan" });
+    } catch { /* abaikan */ }
+
+    setPesanHasil(hasil);
+    setProses(hasil.some((h) => !h.ok) ? "gagal" : "selesai");
+
+    // 4. Buka WhatsApp pembimbing
+    if (utama?.nomor) {
+      const teksWA = [
+        "🚨 DARURAT — KBIH Ibnu Aqil",
+        `Dari: ${nama}`,
+        p ? `Lokasi saya: ${mapsCari(p.lat, p.lng)}` : "Lokasi tidak tersedia.",
+        "Mohon segera dihubungi.",
+      ].join("\n");
+      const tautan = `${waLink(utama.nomor)}?text=${encodeURIComponent(teksWA)}`;
+      setTimeout(() => window.open(tautan, "_blank", "noopener"), 400);
+    }
+  };
+
+  const siap = !!(tg?.token && tg?.chatId) || kontak.length > 0;
+
+  return (
+    <div className="fade">
+      <div style={{ marginBottom: 16 }}>
+        <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600, color: C.danger }}>Tombol Darurat</h2>
+        <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>
+          Tekan dan tahan tombol untuk mengirim lokasi Anda ke grup Telegram dan menghubungi pembimbing lewat WhatsApp.
+        </p>
+      </div>
+
+      {!siap && (
+        <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}55`, borderRadius: 13, padding: "12px 14px", marginBottom: 18, fontSize: 12.5, color: C.goldDeep, display: "flex", gap: 8 }}>
+          <AlertTriangle size={17} style={{ flexShrink: 0 }} />
+          <span>Belum ada tujuan darurat. Atur nomor WhatsApp pembimbing di bawah, dan pastikan koneksi Telegram sudah diisi di halaman Laporan.</span>
+        </div>
+      )}
+
+      {/* TOMBOL BESAR */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0 22px" }}>
+        <button
+          onPointerDown={mulaiTahan}
+          onPointerUp={hentikanTahan}
+          onPointerLeave={hentikanTahan}
+          onPointerCancel={hentikanTahan}
+          onContextMenu={(e) => e.preventDefault()}
+          disabled={proses === "jalan"}
+          style={{
+            width: 220, height: 220, borderRadius: "50%", border: "none", cursor: "pointer",
+            position: "relative", overflow: "hidden", touchAction: "none", userSelect: "none",
+            background: proses === "jalan"
+              ? "#8c2f2f"
+              : `radial-gradient(circle at 35% 30%, #d95252, ${C.danger} 60%, #8c2f2f 100%)`,
+            boxShadow: `0 12px 34px rgba(178,59,59,.42), inset 0 -6px 14px rgba(0,0,0,.22)`,
+            color: "#fff", fontFamily: "inherit",
+            transform: tahan > 0 ? "scale(0.97)" : "scale(1)",
+            transition: "transform .12s ease",
+          }}>
+          {/* isian saat ditahan */}
+          <span style={{
+            position: "absolute", left: 0, bottom: 0, width: "100%", height: `${tahan}%`,
+            background: "rgba(255,255,255,.22)", transition: "height .03s linear",
+          }} />
+          <span style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+            {proses === "jalan"
+              ? <Loader2 size={54} className="spin" />
+              : <AlertOctagon size={54} />}
+            <span style={{ fontSize: 19, fontWeight: 800, letterSpacing: ".02em" }}>
+              {proses === "jalan" ? "MENGIRIM…" : "DARURAT"}
+            </span>
+            <span style={{ fontSize: 11.5, fontWeight: 600, opacity: .9 }}>
+              {proses === "jalan" ? "mohon tunggu" : tahan > 0 ? "terus tahan…" : "tekan & tahan 1,5 detik"}
+            </span>
+          </span>
+        </button>
+
+        <div style={{ marginTop: 14, fontSize: 12.5, color: C.muted, textAlign: "center", maxWidth: 320 }}>
+          {lokasi.pos
+            ? <>Lokasi siap: {lokasi.pos.lat.toFixed(5)}, {lokasi.pos.lng.toFixed(5)} (±{Math.round(lokasi.pos.akurasi)} m)</>
+            : <>Lokasi akan diambil saat tombol ditekan. Untuk lebih cepat, aktifkan lokasi di halaman <strong>Lokasi</strong>.</>}
+        </div>
+      </div>
+
+      {/* HASIL PENGIRIMAN */}
+      {pesanHasil.length > 0 && (
+        <div style={{ background: C.surface, border: `1px solid ${proses === "gagal" ? C.danger + "55" : C.green + "44"}`, borderRadius: 16, padding: 16, marginBottom: 18 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 800, marginBottom: 10, color: proses === "gagal" ? C.danger : C.green, display: "flex", alignItems: "center", gap: 7 }}>
+            {proses === "gagal" ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+            {proses === "gagal" ? "Sebagian gagal dikirim" : "Sinyal darurat terkirim"}
+          </div>
+          {pesanHasil.map((h, i) => (
+            <div key={i} style={{ display: "flex", gap: 7, alignItems: "flex-start", fontSize: 12.5, color: h.ok ? C.ink : C.danger, marginBottom: 5 }}>
+              {h.ok ? <Check size={14} color={C.green} style={{ marginTop: 2, flexShrink: 0 }} /> : <X size={14} style={{ marginTop: 2, flexShrink: 0 }} />}
+              {h.teks}
+            </div>
+          ))}
+          {lokasi.pos && (
+            <div style={{ display: "flex", gap: 7, marginTop: 12, flexWrap: "wrap" }}>
+              <a href={mapsCari(lokasi.pos.lat, lokasi.pos.lng)} target="_blank" rel="noreferrer" className="btn"
+                style={{ textDecoration: "none", background: C.greenSoft, color: C.green, padding: "8px 13px", borderRadius: 10, fontSize: 12.5 }}>
+                <MapIcon size={14} /> Buka lokasi saya di Peta
+              </a>
+              {utama?.nomor && (
+                <a href={waLink(utama.nomor)} target="_blank" rel="noreferrer" className="btn"
+                  style={{ textDecoration: "none", background: "#e4f4ea", color: "#1f9d55", padding: "8px 13px", borderRadius: 10, fontSize: 12.5 }}>
+                  <MessageCircle size={14} /> Buka WhatsApp {utama.nama}
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* KONTAK DARURAT */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
+        <button className="btn" onClick={() => setAtur((a) => !a)}
+          style={{ width: "100%", justifyContent: "space-between", background: "transparent", padding: "14px 16px", borderRadius: 0 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Phone size={17} color={kontak.length ? C.green : C.muted} />
+            <span style={{ fontWeight: 700 }}>Kontak Darurat</span>
+            <Badge bg={kontak.length ? C.greenSoft : C.bg} color={kontak.length ? C.green : C.muted}>
+              {kontak.length ? `${kontak.length} kontak` : "Belum diatur"}
+            </Badge>
+          </span>
+          <ChevronRight size={18} color={C.muted} style={{ transform: atur ? "rotate(90deg)" : "none", transition: "transform .2s" }} />
+        </button>
+
+        {atur && (
+          <div style={{ padding: "4px 16px 18px", borderTop: `1px solid ${C.border}` }}>
+            <p style={{ margin: "12px 0 12px", fontSize: 12.5, color: C.muted }}>
+              Kontak <strong>paling atas</strong> akan otomatis dibuka di WhatsApp saat tombol darurat ditekan. Gunakan tanda panah untuk mengubah urutan.
+            </p>
+            {kontak.map((k, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  <button className="btn iconbtn" disabled={i === 0} title="Naik"
+                    onClick={() => { const s = [...kontak]; [s[i - 1], s[i]] = [s[i], s[i - 1]]; setDarurat({ ...darurat, kontak: s }); }}
+                    style={{ background: "transparent", color: i === 0 ? C.border : C.muted, padding: 1, borderRadius: 5 }}>
+                    <ChevronRight size={13} style={{ transform: "rotate(-90deg)" }} />
+                  </button>
+                  <button className="btn iconbtn" disabled={i === kontak.length - 1} title="Turun"
+                    onClick={() => { const s = [...kontak]; [s[i + 1], s[i]] = [s[i], s[i + 1]]; setDarurat({ ...darurat, kontak: s }); }}
+                    style={{ background: "transparent", color: i === kontak.length - 1 ? C.border : C.muted, padding: 1, borderRadius: 5 }}>
+                    <ChevronRight size={13} style={{ transform: "rotate(90deg)" }} />
+                  </button>
+                </div>
+                <input className="field" style={{ ...inputStyle, flex: 1 }} value={k.nama} placeholder="Nama"
+                  onChange={(e) => { const s = [...kontak]; s[i] = { ...s[i], nama: e.target.value }; setDarurat({ ...darurat, kontak: s }); }} />
+                <input className="field" style={{ ...inputStyle, flex: 1 }} value={k.nomor} placeholder="08xx-xxxx-xxxx"
+                  onChange={(e) => { const s = [...kontak]; s[i] = { ...s[i], nomor: e.target.value }; setDarurat({ ...darurat, kontak: s }); }} />
+                <button className="btn iconbtn" title="Hapus"
+                  onClick={() => setDarurat({ ...darurat, kontak: kontak.filter((_, j) => j !== i) })}
+                  style={{ background: C.dangerSoft, color: C.danger, padding: 9, borderRadius: 10 }}><X size={15} /></button>
+              </div>
+            ))}
+            <button className="btn" onClick={() => setDarurat({ ...darurat, kontak: [...kontak, { nama: "", nomor: "" }] })}
+              style={{ background: C.greenSoft, color: C.green, padding: "9px 15px", borderRadius: 11, marginTop: 4 }}>
+              <UserPlus size={16} /> Tambah Kontak
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={{ background: C.bg, borderRadius: 13, padding: "13px 15px", marginTop: 16, fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>
+        <strong style={{ color: C.ink }}>Yang terjadi saat tombol ditekan:</strong><br />
+        1. Koordinat GPS diambil saat itu juga<br />
+        2. Pesan berisi koordinat & tautan peta dikirim ke grup Telegram<br />
+        3. Kejadian dicatat di riwayat laporan<br />
+        4. WhatsApp kontak pertama terbuka dengan pesan siap kirim
       </div>
     </div>
   );

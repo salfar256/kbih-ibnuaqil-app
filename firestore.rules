@@ -30,7 +30,7 @@ service cloud.firestore {
     match /doa/{id}   { allow read, write: if sudahLogin(); }
     match /fiqh/{id}  { allow read, write: if sudahLogin(); }
 
-    // data/kategoriDoa, data/kategoriFiqh, data/telegram
+    // data/kategoriDoa, data/kategoriFiqh, data/telegram, data/darurat
     match /data/{id}  { allow read, write: if sudahLogin(); }
 
     // Selain yang disebut di atas: ditolak
