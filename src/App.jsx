@@ -13,7 +13,7 @@ import {
   Tags, ChevronDown, Download as DownloadIcon, Smartphone, AlertOctagon,
   ArrowRightLeft, Home, Map as MapIcon, Route, HeartPulse, NotebookPen,
   Activity, Thermometer, Smile, Settings, ShieldCheck, ShieldOff, KeyRound,
-  UserCog, Mail, CircleSlash, ContactRound, Lock,
+  UserCog, Mail, CircleSlash, ContactRound, Lock, Hotel, DoorOpen, BedDouble,
 } from "lucide-react";
 
 /* ============================================================
@@ -587,7 +587,8 @@ function AppInti({ pengguna }) {
     !bolehKelola && akunSaya?.jamaahId ? ["periode", pid, "jamaah", String(akunSaya.jamaahId)] : null
   );
   const [agenda, setAgenda] = useKoleksiTersinkron(["periode", pid, "agenda"], SEED_AGENDA);
-  const [seats, setSeats] = useDataTersinkron(bolehKelola ? ["periode", pid, "data", "kursi"] : null, SEED_SEATS);
+  const [seats, setSeats] = useDataTersinkron(pid !== "kosong" ? ["periode", pid, "data", "kursi"] : null, SEED_SEATS, bolehKelola);
+  const [hotel, setHotel] = useDataTersinkron(pid !== "kosong" ? ["periode", pid, "data", "hotel"] : null, { kamar: [] }, bolehKelola);
   const [absen, setAbsen] = useDataTersinkron(bolehKelola ? ["periode", pid, "data", "absensi"] : null, SEED_ABSEN);
   const [titikPenting, setTitikPenting] = useKoleksiTersinkron(bolehKelola ? ["periode", pid, "titikPenting"] : null, SEED_TITIK_PENTING);
   const [titikKumpul, setTitikKumpul] = useKoleksiTersinkron(bolehKelola ? ["periode", pid, "titikKumpul"] : null, SEED_TITIK_KUMPUL);
@@ -618,7 +619,7 @@ function AppInti({ pengguna }) {
     { id: "periode", label: "Periode", icon: LayoutGrid },
     { id: "jamaah", label: "Jamaah", icon: Users },
     { id: "kontak", label: "Kontak", icon: Phone },
-    { id: "bus", label: "Kursi Bis", icon: Bus },
+    { id: "bus", label: "Bis & Hotel", icon: Bus },
     { id: "agenda", label: "Agenda", icon: CalendarDays },
     { id: "absensi", label: "Absensi", icon: ClipboardCheck },
     { id: "lokasi", label: "Lokasi", icon: Navigation },
@@ -631,6 +632,7 @@ function AppInti({ pengguna }) {
   const NAV_JAMAAH_KHUSUS = [
     { id: "kartuku", label: "Kartu Saya", icon: ContactRound },
     { id: "kontak", label: "Jamaah", icon: Users },
+    { id: "bus", label: "Bis & Hotel", icon: Bus },
     { id: "agenda", label: "Agenda", icon: CalendarDays },
     { id: "doa", label: "Doa", icon: BookOpen },
     { id: "fiqh", label: "Fiqh", icon: Scale },
@@ -746,7 +748,7 @@ function AppInti({ pengguna }) {
         )}
         {page === "jamaah" && <JamaahPage list={list} setList={setList} pengguna={pengguna} />}
         {page === "kontak" && <KontakPage list={bolehKelola ? list : direktori} bolehKelola={bolehKelola} />}
-        {page === "bus" && <BusPage list={list} seats={seats} setSeats={setSeats} byId={byId} />}
+        {page === "bus" && <BisHotelPage list={bolehKelola ? list : direktori} seats={seats || {}} setSeats={setSeats} hotel={hotel} setHotel={setHotel} byId={byId} bolehKelola={bolehKelola} />}
         {page === "agenda" && <AgendaPage agenda={agenda} setAgenda={setAgenda} list={list} absen={absen} setAbsen={setAbsen} bolehKelola={bolehKelola} />}
         {page === "absensi" && <AbsensiPage agenda={agenda} list={list} absen={absen} setAbsen={setAbsen} />}
         {page === "lokasi" && <LokasiPage titikPenting={titikPenting} setTitikPenting={setTitikPenting} titikKumpul={titikKumpul} setTitikKumpul={setTitikKumpul} lokasi={lokasi} />}
@@ -1285,7 +1287,37 @@ const BUS_ROWS = 15;
 const COLS = ["A", "B", "C", "D"];
 const allSeatIds = () => { const a = []; for (let r = 1; r <= BUS_ROWS; r++) COLS.forEach((c) => a.push(`${r}${c}`)); return a; };
 
-function BusPage({ list, seats, setSeats, byId }) {
+function BisHotelPage({ list, seats, setSeats, hotel, setHotel, byId, bolehKelola = true }) {
+  const [tab, setTab] = useState("bis");
+  const kamar = hotel?.kamar || [];
+
+  return (
+    <div className="fade">
+      <div style={{ display: "flex", gap: 8, marginBottom: 18, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 5 }}>
+        {[
+          { id: "bis", label: "Kursi Bis", icon: Bus, jml: Object.values(seats || {}).filter(Boolean).length },
+          { id: "hotel", label: "Kamar Hotel", icon: Hotel, jml: kamar.reduce((n, k) => n + (k.penghuni || []).length, 0) },
+        ].map((t) => {
+          const on = tab === t.id;
+          return (
+            <button key={t.id} className="btn" onClick={() => setTab(t.id)}
+              style={{ flex: 1, justifyContent: "center", gap: 8, padding: "11px 10px", borderRadius: 10, fontSize: 13.5,
+                background: on ? C.green : "transparent", color: on ? "#fff" : C.muted, fontWeight: on ? 800 : 600 }}>
+              <t.icon size={17} /> {t.label}
+              <span style={{ background: on ? "#ffffff2e" : C.bg, color: on ? "#fff" : C.muted, padding: "1px 8px", borderRadius: 99, fontSize: 11.5, fontWeight: 700 }}>{t.jml}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "bis"
+        ? <BusPage list={list} seats={seats} setSeats={setSeats} byId={byId} bolehKelola={bolehKelola} />
+        : <HotelPage list={list} kamar={kamar} setKamar={(k) => setHotel({ ...(hotel || {}), kamar: k })} byId={byId} bolehKelola={bolehKelola} />}
+    </div>
+  );
+}
+
+function BusPage({ list, seats, setSeats, byId, bolehKelola = true }) {
   const [drag, setDrag] = useState(null);
   const [over, setOver] = useState(null);
   const [picker, setPicker] = useState(null); // seatId being assigned
@@ -1436,6 +1468,10 @@ function AgendaPage({ agenda, setAgenda, list, absen, setAbsen, bolehKelola = tr
   const sorted = [...agenda].sort((a, b) => (a.tanggal + a.waktu).localeCompare(b.tanggal + b.waktu));
   const remove = (id) => { if (window.confirm("Hapus agenda ini?")) setAgenda((a) => a.filter((x) => x.id !== id)); };
   const save = (d) => { if (d.id) setAgenda((a) => a.map((x) => (x.id === d.id ? d : x))); else setAgenda((a) => [...a, { ...d, id: Date.now() }]); setMode("list"); };
+  const tandaiSelesai = (id) => setAgenda((a) => a.map((x) => (x.id === id
+    ? { ...x, selesai: !x.selesai, selesaiPada: !x.selesai ? new Date().toISOString() : null }
+    : x)));
+  const jmlSelesai = agenda.filter((a) => a.selesai).length;
 
   if (mode === "absen") { const ag = agenda.find((a) => a.id === absenId); if (ag) return <AbsenEditor ag={ag} list={list} absen={absen} setAbsen={setAbsen} onBack={() => setMode("list")} />; }
   if (mode === "form") return <AgendaForm initial={editing} onCancel={() => setMode("list")} onSave={save} />;
@@ -1443,7 +1479,9 @@ function AgendaPage({ agenda, setAgenda, list, absen, setAbsen, bolehKelola = tr
   return (
     <div className="fade">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div><h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Agenda Perjalanan</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Jadwal kegiatan selama bimbingan & di tanah suci.</p></div>
+        <div><h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Agenda Perjalanan</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>
+          Jadwal kegiatan selama bimbingan & di tanah suci.{agenda.length > 0 && <> <strong style={{ color: C.green }}>{jmlSelesai} dari {agenda.length} selesai.</strong></>}
+        </p></div>
         {bolehKelola && <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}><Plus size={18} /> Tambah Agenda</button>}
       </div>
 
@@ -1454,18 +1492,43 @@ function AgendaPage({ agenda, setAgenda, list, absen, setAbsen, bolehKelola = tr
             return (
               <div key={a.id} style={{ display: "flex", gap: 16, position: "relative" }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <div style={{ width: 14, height: 14, borderRadius: 99, background: C.green, border: `3px solid ${C.greenSoft}`, marginTop: 22 }} />
+                  <div style={{
+                    width: 14, height: 14, borderRadius: 99, marginTop: 22,
+                    background: a.selesai ? C.border : C.green,
+                    border: `3px solid ${a.selesai ? C.bg : C.greenSoft}`,
+                    transition: "background .2s",
+                  }} />
                   {idx < sorted.length - 1 && <div style={{ width: 2, flex: 1, background: C.border, margin: "4px 0" }} />}
                 </div>
-                <div className="card-hover" style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, marginBottom: 14 }}>
+                <div className="card-hover" style={{
+                  flex: 1, background: C.surface, borderRadius: 16, padding: 16, marginBottom: 14,
+                  border: `1px solid ${a.selesai ? C.border : C.border}`,
+                  opacity: a.selesai ? .55 : 1,
+                  filter: a.selesai ? "saturate(.45)" : "none",
+                  transition: "opacity .25s ease, filter .25s ease",
+                }}>
                   {a.gambar && <img src={a.gambar.data} alt={a.judul} style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: 12, marginBottom: 12, display: "block" }} />}
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <div style={{ minWidth: 0 }}>
+                    <div style={{ minWidth: 0, display: "flex", gap: 11 }}>
+                      {/* kotak ceklis selesai */}
+                      <button className="btn" onClick={() => bolehKelola && tandaiSelesai(a.id)}
+                        disabled={!bolehKelola} title={a.selesai ? "Tandai belum selesai" : "Tandai selesai"}
+                        style={{
+                          width: 26, height: 26, flexShrink: 0, marginTop: 2, padding: 0,
+                          borderRadius: 8, justifyContent: "center",
+                          background: a.selesai ? C.green : "#fff",
+                          border: `2px solid ${a.selesai ? C.green : C.border}`,
+                          color: "#fff", cursor: bolehKelola ? "pointer" : "default",
+                        }}>
+                        {a.selesai && <Check size={15} strokeWidth={3.2} />}
+                      </button>
+                      <div style={{ minWidth: 0 }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 5 }}>
                         <Badge bg={C.greenSoft} color={C.green} icon={CalendarDays}>{tglRingkas(a.tanggal)}</Badge>
                         <Badge bg={C.goldSoft} color={C.goldDeep} icon={Clock}>{a.waktu} WIB/AST</Badge>
+                        {a.selesai && <Badge bg={C.greenSoft} color={C.green} icon={CheckCircle2}>Selesai</Badge>}
                       </div>
-                      <div style={{ fontSize: 16, fontWeight: 700 }}>{a.judul}</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, textDecoration: a.selesai ? "line-through" : "none", textDecorationColor: C.border }}>{a.judul}</div>
                       <div style={{ fontSize: 13, color: C.muted, marginTop: 3, display: "flex", alignItems: "center", gap: 5 }}><MapPin size={13} /> {a.lokasi || "—"}</div>
                       {a.keterangan && <div style={{ fontSize: 13, color: C.ink, marginTop: 7, lineHeight: 1.5 }}>{a.keterangan}</div>}
                       {a.materi && (
@@ -1473,6 +1536,7 @@ function AgendaPage({ agenda, setAgenda, list, absen, setAbsen, bolehKelola = tr
                           <Paperclip size={14} /> Materi: {a.materi.nama}{a.materi.ukuran ? <span style={{ fontWeight: 500, opacity: .8 }}> ({formatUkuran(a.materi.ukuran)})</span> : null}
                         </button>
                       )}
+                      </div>
                     </div>
                     {bolehKelola && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 7, alignItems: "flex-end" }}>
@@ -1771,60 +1835,117 @@ function useArahHP() {
   return { arah, status, andal, nyalakan, matikan };
 }
 
-/* ---------- lokasi yang tetap hidup antar halaman ---------- */
+/* ---------- lokasi yang tetap hidup antar halaman ----------
+   GPS mengirim banyak pembacaan dengan mutu berbeda-beda.
+   Yang pertama datang biasanya dari jaringan/WiFi dengan
+   ketelitian ratusan meter. Kode ini menyaring, hanya menerima
+   pembacaan yang lebih baik, sehingga hasilnya bisa mendekati
+   5-10 meter saat sinyal satelit sudah terkunci.
+------------------------------------------------------------ */
+const MUTU_LOKASI = (m) => {
+  if (m == null) return { label: "—", warna: C.muted, latar: C.bg };
+  if (m <= 10) return { label: "Sangat teliti", warna: "#0f5c37", latar: "#e7f0ea" };
+  if (m <= 25) return { label: "Teliti", warna: "#2f7fa8", latar: "#e6f0f5" };
+  if (m <= 60) return { label: "Cukup", warna: "#9a7620", latar: "#f4ead0" };
+  return { label: "Masih kasar", warna: "#b23b3b", latar: "#f7e7e6" };
+};
+
 function useLokasiGlobal() {
   const [pos, setPos] = useState(null);
   const [aktif, setAktif] = useState(false);
   const [galat, setGalat] = useState("");
+  const [mencari, setMencari] = useState(false);
   const idRef = useRef(null);
+  const terbaikRef = useRef(null);
   const kompas = useArahHP();
+
+  // Menerima pembacaan baru hanya bila lebih teliti,
+  // atau bila pembacaan terbaik sudah kedaluwarsa.
+  const terima = (p) => {
+    const baru = {
+      lat: p.coords.latitude, lng: p.coords.longitude,
+      akurasi: p.coords.accuracy, waktu: p.timestamp,
+      kecepatan: p.coords.speed, arahGerak: p.coords.heading,
+    };
+    const lama = terbaikRef.current;
+    const usangMs = 12000;
+    const layakPakai =
+      !lama ||
+      baru.akurasi <= lama.akurasi ||
+      baru.waktu - lama.waktu > usangMs ||
+      Math.abs(baru.lat - lama.lat) > 0.0004 || Math.abs(baru.lng - lama.lng) > 0.0004;
+
+    if (!layakPakai) return;
+    terbaikRef.current = baru;
+    setPos(baru);
+    setGalat("");
+    if (baru.akurasi <= 15) setMencari(false);
+  };
 
   const nyalakan = () => {
     if (!navigator.geolocation) { setGalat("Perangkat/browser ini tidak mendukung deteksi lokasi."); return; }
     if (idRef.current != null) return;
-    setGalat(""); setAktif(true);
+    setGalat(""); setAktif(true); setMencari(true);
+    terbaikRef.current = null;
     kompas.nyalakan();
+
+    // Pembacaan awal cepat, lalu pemantauan teliti
+    navigator.geolocation.getCurrentPosition(terima, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 });
+
     idRef.current = navigator.geolocation.watchPosition(
-      (p) => { setPos({ lat: p.coords.latitude, lng: p.coords.longitude, akurasi: p.coords.accuracy, waktu: p.timestamp }); setGalat(""); },
+      terima,
       (err) => {
-        setAktif(false); idRef.current = null;
+        if (err.code === 3) return;   // waktu habis: biarkan mencoba lagi
+        setAktif(false); setMencari(false); idRef.current = null;
         setGalat(err.code === 1
           ? "Izin lokasi ditolak. Aktifkan izin lokasi untuk situs ini di pengaturan browser HP."
           : "Gagal membaca lokasi. Pastikan GPS aktif dan coba lagi.");
       },
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
     );
+
+    // Berhenti menandai "mencari" setelah 25 detik walau belum sangat teliti
+    setTimeout(() => setMencari(false), 25000);
   };
 
   const matikan = () => {
     if (idRef.current != null) navigator.geolocation.clearWatch(idRef.current);
     idRef.current = null;
-    setAktif(false);
+    terbaikRef.current = null;
+    setAktif(false); setMencari(false);
     kompas.matikan();
   };
 
-  // Ambil posisi sekali saja (untuk tombol darurat, tanpa perlu menyalakan pemantauan)
+  // Membuang pembacaan lama dan mencari ulang dari awal
+  const segarkan = () => {
+    terbaikRef.current = null;
+    setMencari(true);
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(terima, () => setMencari(false), { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    setTimeout(() => setMencari(false), 20000);
+  };
+
   const ambilSekali = () => new Promise((selesai, gagal) => {
-    if (pos) return selesai(pos);
+    if (pos && pos.akurasi <= 40 && Date.now() - pos.waktu < 20000) return selesai(pos);
     if (!navigator.geolocation) return gagal(new Error("Perangkat tidak mendukung deteksi lokasi."));
     navigator.geolocation.getCurrentPosition(
       (p) => {
         const n = { lat: p.coords.latitude, lng: p.coords.longitude, akurasi: p.coords.accuracy, waktu: p.timestamp };
-        setPos(n); selesai(n);
+        terbaikRef.current = n; setPos(n); selesai(n);
       },
-      (e) => gagal(new Error(e.code === 1 ? "Izin lokasi ditolak." : "Gagal membaca lokasi.")),
-      { enableHighAccuracy: true, timeout: 15000 }
+      (e) => (pos ? selesai(pos) : gagal(new Error(e.code === 1 ? "Izin lokasi ditolak." : "Gagal membaca lokasi."))),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
   });
 
   useEffect(() => () => { if (idRef.current != null) navigator.geolocation.clearWatch(idRef.current); }, []);
 
-  return { pos, aktif, galat, nyalakan, matikan, ambilSekali, kompas };
+  return { pos, aktif, galat, mencari, nyalakan, matikan, segarkan, ambilSekali, kompas };
 }
 
 function LokasiPage({ titikPenting, setTitikPenting, titikKumpul, setTitikKumpul, lokasi }) {
   const [modal, setModal] = useState(null); // 'penting' | 'kumpul'
-  const { pos, aktif: tracking, galat: errMsg, nyalakan: mulaiLokasi, matikan: berhentiLokasi, kompas } = lokasi;
+  const { pos, aktif: tracking, galat: errMsg, mencari, nyalakan: mulaiLokasi, matikan: berhentiLokasi, segarkan, kompas } = lokasi;
 
   return (
     <div className="fade">
@@ -1841,8 +1962,33 @@ function LokasiPage({ titikPenting, setTitikPenting, titikKumpul, setTitikKumpul
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontWeight: 700, fontSize: 14.5 }}>{tracking ? "Lokasi Anda aktif" : "Lokasi Anda belum aktif"}</div>
           <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
-            {pos ? <>Koordinat: {pos.lat.toFixed(5)}, {pos.lng.toFixed(5)} · akurasi ±{Math.round(pos.akurasi)} m</> : "Aktifkan untuk melihat jarak & arah ke setiap titik."}
+            {pos ? <>Koordinat: {pos.lat.toFixed(6)}, {pos.lng.toFixed(6)}</> : "Aktifkan untuk melihat jarak & arah ke setiap titik."}
           </div>
+          {pos && (() => {
+            const m = MUTU_LOKASI(pos.akurasi);
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7, flexWrap: "wrap" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: m.latar, color: m.warna, padding: "4px 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 800 }}>
+                  <Crosshair size={12} /> ±{Math.round(pos.akurasi)} m · {m.label}
+                </span>
+                {mencari && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: C.muted }}>
+                    <Loader2 size={12} className="spin" /> mencari sinyal satelit…
+                  </span>
+                )}
+                <button className="btn" onClick={segarkan}
+                  style={{ background: "transparent", color: C.green, padding: "2px 0", fontSize: 11.5, fontWeight: 700, textDecoration: "underline" }}>
+                  Cari ulang
+                </button>
+              </div>
+            );
+          })()}
+          {pos && pos.akurasi > 40 && (
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6, lineHeight: 1.55, background: C.bg, borderRadius: 9, padding: "8px 11px" }}>
+              Ketelitian masih rendah. Agar mendekati 5-10 meter: berdirilah di tempat terbuka (jauh dari dinding tinggi),
+              pastikan mode lokasi HP disetel <strong>Akurasi tinggi</strong>, dan tunggu 20-30 detik sampai satelit terkunci.
+            </div>
+          )}
           {errMsg && <div style={{ fontSize: 12.5, color: C.danger, marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}><AlertTriangle size={13} /> {errMsg}</div>}
           {tracking && (
             <div style={{ fontSize: 12, marginTop: 5, display: "flex", alignItems: "center", gap: 6, color: kompas.status === "aktif" ? C.green : C.muted, flexWrap: "wrap" }}>
@@ -3970,5 +4116,267 @@ function KartuInfo({ label, isi }) {
       <div style={{ fontSize: 10, color: "#b9cdc0", letterSpacing: ".05em", textTransform: "uppercase", fontWeight: 700 }}>{label}</div>
       <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 3, wordBreak: "break-word" }}>{isi || "—"}</div>
     </div>
+  );
+}
+
+/* ============================================================
+   HOTEL — pembagian kamar
+   ============================================================ */
+function HotelPage({ list, kamar, setKamar, byId, bolehKelola = true }) {
+  const [form, setForm] = useState(null);      // null | {} | kamar
+  const [isiKamar, setIsiKamar] = useState(null);
+
+  const terisi = useMemo(() => {
+    const m = {};
+    kamar.forEach((k) => (k.penghuni || []).forEach((id) => { m[String(id)] = k; }));
+    return m;
+  }, [kamar]);
+
+  const belumDapat = list.filter((j) => !terisi[String(j.id)]);
+
+  const simpanKamar = (k) => {
+    if (k.id) setKamar(kamar.map((x) => (x.id === k.id ? k : x)));
+    else setKamar([...kamar, { ...k, id: Date.now(), penghuni: [] }]);
+    setForm(null);
+  };
+
+  const hapusKamar = (k) => {
+    const jml = (k.penghuni || []).length;
+    if (!window.confirm(jml
+      ? `Hapus kamar ${k.nomor}?\n\n${jml} penghuni akan kembali ke daftar "belum dapat kamar".`
+      : `Hapus kamar ${k.nomor}?`)) return;
+    setKamar(kamar.filter((x) => x.id !== k.id));
+  };
+
+  const keluarkan = (kamarId, jamaahId) => {
+    setKamar(kamar.map((k) => (k.id === kamarId
+      ? { ...k, penghuni: (k.penghuni || []).filter((id) => String(id) !== String(jamaahId)) }
+      : k)));
+  };
+
+  const masukkan = (kamarId, jamaahId) => {
+    setKamar(kamar.map((k) => {
+      const bersih = (k.penghuni || []).filter((id) => String(id) !== String(jamaahId));
+      return k.id === kamarId ? { ...k, penghuni: [...bersih, String(jamaahId)] } : { ...k, penghuni: bersih };
+    }));
+  };
+
+  if (form !== null) return <KamarForm initial={form.id ? form : null} onCancel={() => setForm(null)} onSave={simpanKamar} />;
+
+  const totalPenghuni = kamar.reduce((n, k) => n + (k.penghuni || []).length, 0);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Kamar Hotel</h2>
+          <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>
+            {kamar.length} kamar · {totalPenghuni} dari {list.length} jamaah sudah dapat kamar.
+          </p>
+        </div>
+        {bolehKelola && (
+          <button className="btn" onClick={() => setForm({})} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
+            <Plus size={18} /> Tambah Kamar
+          </button>
+        )}
+      </div>
+
+      {!bolehKelola && (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.bg, color: C.muted, borderRadius: 9, padding: "6px 11px", fontSize: 11.5, marginBottom: 14 }}>
+          <Lock size={12} /> Hanya bisa dilihat
+        </div>
+      )}
+
+      {kamar.length === 0 ? (
+        <div style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 16, padding: "46px 20px", textAlign: "center", color: C.muted, marginTop: 14 }}>
+          <Hotel size={32} color={C.border} />
+          <p style={{ marginTop: 12, fontWeight: 600 }}>Belum ada kamar.</p>
+          {bolehKelola && <p style={{ margin: "4px 0 0", fontSize: 13 }}>Tekan "Tambah Kamar" untuk mulai membagi.</p>}
+        </div>
+      ) : (
+        <div className="kartu-grid" style={{ marginTop: 14 }}>
+          {kamar.map((k) => {
+            const penghuni = (k.penghuni || []).map((id) => byId[id] || byId[Number(id)]).filter(Boolean);
+            const kapasitas = Number(k.kapasitas) || 0;
+            const penuh = kapasitas > 0 && penghuni.length >= kapasitas;
+            return (
+              <div key={k.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 17, padding: 16 }}>
+                <div style={{ display: "flex", gap: 11, alignItems: "flex-start", marginBottom: 12 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 12, background: penuh ? C.greenSoft : C.bg, color: penuh ? C.green : C.muted, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <DoorOpen size={20} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 16.5, fontWeight: 800, lineHeight: 1.2 }}>Kamar {k.nomor}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                      {k.lantai && <Badge bg={C.bg} color={C.muted}>Lantai {k.lantai}</Badge>}
+                      {k.tipe && <Badge bg={C.goldSoft} color={C.goldDeep} icon={BedDouble}>{k.tipe}</Badge>}
+                      <Badge bg={penuh ? C.greenSoft : C.bg} color={penuh ? C.green : C.muted} icon={Users}>
+                        {penghuni.length}{kapasitas ? `/${kapasitas}` : ""} orang
+                      </Badge>
+                    </div>
+                  </div>
+                  {bolehKelola && (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className="btn iconbtn" onClick={() => setForm(k)} title="Ubah" style={{ background: C.bg, padding: 8, borderRadius: 9 }}><Pencil size={14} /></button>
+                      <button className="btn iconbtn" onClick={() => hapusKamar(k)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 8, borderRadius: 9 }}><Trash2 size={14} /></button>
+                    </div>
+                  )}
+                </div>
+
+                {k.catatan && <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 11, lineHeight: 1.5 }}>{k.catatan}</div>}
+
+                {penghuni.length === 0 ? (
+                  <div style={{ fontSize: 12.5, color: C.border, padding: "14px 0", textAlign: "center", border: `1px dashed ${C.border}`, borderRadius: 11 }}>
+                    Belum ada penghuni
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    {penghuni.map((j) => (
+                      <div key={j.id} style={{ display: "flex", alignItems: "center", gap: 9, background: C.bg, borderRadius: 10, padding: "7px 9px" }}>
+                        <Avatar foto={j.foto} nama={j.nama} size={30} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{j.nama}</div>
+                          {j.rombongan && <div style={{ fontSize: 11, color: C.muted }}>Rombongan {j.rombongan}</div>}
+                        </div>
+                        {bolehKelola && (
+                          <button className="btn iconbtn" onClick={() => keluarkan(k.id, j.id)} title="Keluarkan dari kamar"
+                            style={{ background: "#fff", color: C.muted, padding: 6, borderRadius: 8 }}><X size={13} /></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {bolehKelola && !penuh && (
+                  <button className="btn" onClick={() => setIsiKamar(k)}
+                    style={{ width: "100%", justifyContent: "center", marginTop: 10, background: C.greenSoft, color: C.green, padding: "9px 12px", borderRadius: 10, fontSize: 12.5 }}>
+                    <UserPlus size={15} /> Masukkan Jamaah
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Belum dapat kamar */}
+      {bolehKelola && belumDapat.length > 0 && (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, marginTop: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: C.muted, marginBottom: 11 }}>
+            Belum dapat kamar ({belumDapat.length})
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {belumDapat.map((j) => (
+              <div key={j.id} style={{ display: "flex", alignItems: "center", gap: 7, background: C.bg, borderRadius: 99, padding: "5px 12px 5px 5px", fontSize: 12.5 }}>
+                <Avatar foto={j.foto} nama={j.nama} size={24} />
+                <span style={{ fontWeight: 600 }}>{j.nama}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isiKamar && (
+        <PilihPenghuniModal kamar={isiKamar} list={list} terisi={terisi}
+          onClose={() => setIsiKamar(null)}
+          onPilih={(jamaahId) => { masukkan(isiKamar.id, jamaahId); setIsiKamar(null); }} />
+      )}
+    </div>
+  );
+}
+
+function KamarForm({ initial, onCancel, onSave }) {
+  const [f, setF] = useState(initial || { nomor: "", lantai: "", tipe: "Double", kapasitas: "2", catatan: "" });
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const bisa = String(f.nomor).trim().length > 0;
+
+  return (
+    <div className="fade">
+      <button className="btn" onClick={onCancel} style={{ background: "transparent", color: C.green, padding: "6px 0", marginBottom: 14 }}><ArrowLeft size={18} /> Batal</button>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, maxWidth: 560, margin: "0 auto" }}>
+        <h2 className="serif" style={{ margin: "0 0 18px", fontSize: 22, fontWeight: 600 }}>{initial ? "Ubah Kamar" : "Tambah Kamar"}</h2>
+        <Grid>
+          <div>
+            <Label req>Nomor kamar</Label>
+            <input className="field" style={inputStyle} value={f.nomor} onChange={(e) => set("nomor", e.target.value)} placeholder="cth. 812" />
+          </div>
+          <div>
+            <Label>Lantai</Label>
+            <input className="field" style={inputStyle} value={f.lantai} onChange={(e) => set("lantai", e.target.value)} placeholder="cth. 8" />
+          </div>
+          <div>
+            <Label>Tipe kamar</Label>
+            <select className="field" style={inputStyle} value={f.tipe} onChange={(e) => set("tipe", e.target.value)}>
+              <option>Double</option><option>Triple</option><option>Quad</option><option>Single</option>
+            </select>
+          </div>
+          <div>
+            <Label>Kapasitas</Label>
+            <input className="field" type="number" min="1" style={inputStyle} value={f.kapasitas} onChange={(e) => set("kapasitas", e.target.value)} placeholder="cth. 4" />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Label>Catatan</Label>
+            <input className="field" style={inputStyle} value={f.catatan} onChange={(e) => set("catatan", e.target.value)} placeholder="cth. dekat lift, kamar lansia" />
+          </div>
+        </Grid>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+          <button className="btn" onClick={onCancel} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "11px 20px", borderRadius: 12 }}>Batal</button>
+          <button className="btn" disabled={!bisa} onClick={() => onSave(f)} style={{ background: bisa ? C.green : C.border, color: "#fff", padding: "11px 24px", borderRadius: 12, cursor: bisa ? "pointer" : "not-allowed" }}><Check size={18} /> Simpan</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PilihPenghuniModal({ kamar, list, terisi, onClose, onPilih }) {
+  const [q, setQ] = useState("");
+  const hasil = list.filter((j) => {
+    const s = q.trim().toLowerCase();
+    return !s || (j.nama || "").toLowerCase().includes(s);
+  });
+
+  return (
+    <Modal onClose={onClose} width={420}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Masukkan ke Kamar {kamar.nomor}</h3>
+          <button className="btn iconbtn" onClick={onClose} style={{ background: C.bg, padding: 7, borderRadius: 9 }}><X size={16} /></button>
+        </div>
+        <p style={{ margin: "0 0 14px", fontSize: 12.5, color: C.muted }}>
+          Jamaah yang sudah punya kamar lain akan otomatis dipindahkan.
+        </p>
+
+        <div style={{ position: "relative", marginBottom: 12 }}>
+          <Search size={16} color={C.muted} style={{ position: "absolute", left: 12, top: 12 }} />
+          <input className="field" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama…" style={{ ...inputStyle, paddingLeft: 38 }} />
+        </div>
+
+        <div style={{ maxHeight: 340, overflow: "auto" }} className="kbih-scroll">
+          {hasil.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 24, fontSize: 13, color: C.muted }}>Tidak ada nama yang cocok.</div>
+          ) : hasil.map((j) => {
+            const kamarLain = terisi[String(j.id)];
+            const disini = kamarLain && kamarLain.id === kamar.id;
+            return (
+              <button key={j.id} className="btn" onClick={() => !disini && onPilih(j.id)} disabled={disini}
+                style={{
+                  width: "100%", justifyContent: "flex-start", gap: 10, padding: "9px 10px", marginBottom: 6,
+                  background: disini ? C.greenSoft : "#fff", border: `1px solid ${C.border}`, borderRadius: 11,
+                  cursor: disini ? "default" : "pointer", textAlign: "left",
+                }}>
+                <Avatar foto={j.foto} nama={j.nama} size={32} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 700 }}>{j.nama}</span>
+                  <span style={{ display: "block", fontSize: 11.5, color: C.muted }}>
+                    {disini ? "sudah di kamar ini" : kamarLain ? `sekarang di kamar ${kamarLain.nomor}` : (j.rombongan ? `Rombongan ${j.rombongan}` : "belum dapat kamar")}
+                  </span>
+                </span>
+                {disini ? <Check size={16} color={C.green} /> : <ChevronRight size={16} color={C.border} />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </Modal>
   );
 }

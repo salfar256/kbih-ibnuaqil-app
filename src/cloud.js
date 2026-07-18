@@ -118,7 +118,7 @@ export function useKoleksiTersinkron(jalur, awal = []) {
 /* ---------------- Sinkronisasi DOKUMEN TUNGGAL ----------------
    Untuk data berbentuk objek kecil (denah kursi, absensi).
 --------------------------------------------------------------- */
-export function useDataTersinkron(jalur, awal) {
+export function useDataTersinkron(jalur, awal, bolehTulis = true) {
   const bagian = jalur ? (Array.isArray(jalur) ? jalur : ["data", jalur]) : null;
   const kunci = bagian ? bagian.join("/") : "";
   const [nilai, setNilai] = useState(awal);
@@ -136,7 +136,7 @@ export function useDataTersinkron(jalur, awal) {
       acuan,
       (snap) => {
         if (snap.exists()) { abaikan.current = true; setNilai(snap.data().value); }
-        else setDoc(acuan, { value: bersihkan(awal) }).catch(() => {});
+        else if (bolehTulis) setDoc(acuan, { value: bersihkan(awal) }).catch(() => {});
         sudahSiap.current = true; setSiap(true);
       },
       (err) => { console.error("Gagal membaca", kunci, err); setSiap(true); sudahSiap.current = true; }
@@ -145,7 +145,7 @@ export function useDataTersinkron(jalur, awal) {
   }, [kunci]);
 
   useEffect(() => {
-    if (!kunci || !sudahSiap.current) return;
+    if (!kunci || !bolehTulis || !sudahSiap.current) return;
     if (abaikan.current) { abaikan.current = false; return; }
     const t = setTimeout(() => {
       setDoc(doc(db, ...bagian), { value: bersihkan(nilai) })
