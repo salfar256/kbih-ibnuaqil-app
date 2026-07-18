@@ -11,7 +11,8 @@ import {
   ShieldAlert, BookOpen, FileUp, ImagePlus, Paperclip, Download,
   LogOut, Loader2, CloudOff, Link as LinkIcon, Scale, LayoutGrid,
   Tags, ChevronDown, Download as DownloadIcon, Smartphone, AlertOctagon,
-  ArrowRightLeft, Home,
+  ArrowRightLeft, Home, Map as MapIcon, Route, HeartPulse, NotebookPen,
+  Activity, Thermometer, Smile,
 } from "lucide-react";
 
 /* ============================================================
@@ -143,6 +144,19 @@ function bearingDerajat(lat1, lon1, lat2, lon2) {
   const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
   return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360;
 }
+/* ---------- tautan Google Maps ---------- */
+const mapsCari = (lat, lng) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+const mapsRute = (lat, lng, moda = "walking") =>
+  `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=${moda}`;
+
+/* ---------- kondisi harian jamaah ---------- */
+const KONDISI = {
+  sehat:    { label: "Sehat",           warna: "#0f5c37", latar: "#e7f0ea", ikon: Smile },
+  kurang:   { label: "Kurang sehat",    warna: "#9a7620", latar: "#f4ead0", ikon: Thermometer },
+  sakit:    { label: "Sakit",           warna: "#b23b3b", latar: "#f7e7e6", ikon: HeartPulse },
+  perhatian:{ label: "Butuh perhatian", warna: "#2f7fa8", latar: "#e6f0f5", ikon: Activity },
+};
+
 const MATA_ANGIN = ["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"];
 const arahMataAngin = (deg) => MATA_ANGIN[Math.round(deg / 45) % 8];
 const formatJarak = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
@@ -672,7 +686,7 @@ function AppInti({ pengguna }) {
           <PeriodePage periode={periode} setPeriode={setPeriode} idAktif={pid}
             onPilih={(id) => { pilihPeriode(id); setPage("jamaah"); }} siap={siapPeriode} />
         )}
-        {page === "jamaah" && <JamaahPage list={list} setList={setList} />}
+        {page === "jamaah" && <JamaahPage list={list} setList={setList} pengguna={pengguna} />}
         {page === "bus" && <BusPage list={list} seats={seats} setSeats={setSeats} byId={byId} />}
         {page === "agenda" && <AgendaPage agenda={agenda} setAgenda={setAgenda} list={list} absen={absen} setAbsen={setAbsen} />}
         {page === "absensi" && <AbsensiPage agenda={agenda} list={list} absen={absen} setAbsen={setAbsen} />}
@@ -697,7 +711,7 @@ function AppInti({ pengguna }) {
 /* ============================================================
    JAMAAH PAGE
    ============================================================ */
-function JamaahPage({ list, setList }) {
+function JamaahPage({ list, setList, pengguna }) {
   const [view, setView] = useState("list");
   const [selId, setSelId] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -722,8 +736,13 @@ function JamaahPage({ list, setList }) {
     setSelId(clean.id); setView("detail");
   };
 
+  const perbarui = (id, ubah) => setList((l) => l.map((j) => (j.id === id ? { ...j, ...ubah } : j)));
+
   if (view === "detail" && selected)
-    return <JamaahDetail j={selected} list={list} onBack={() => setView("list")} onEdit={() => { setEditing(selected); setView("form"); }} onDelete={() => remove(selected.id)} onOpen={(id) => { setSelId(id); }} />;
+    return <JamaahDetail j={selected} list={list} pengguna={pengguna}
+      onBack={() => setView("list")} onEdit={() => { setEditing(selected); setView("form"); }}
+      onDelete={() => remove(selected.id)} onOpen={(id) => { setSelId(id); }}
+      onPerbarui={(ubah) => perbarui(selected.id, ubah)} />;
   if (view === "form")
     return <JamaahForm initial={editing} list={list} onCancel={() => setView(editing ? "detail" : "list")} onSave={save} />;
 
@@ -780,6 +799,12 @@ function JamaahPage({ list, setList }) {
                   {j.kursiRoda && <Badge bg={C.blueSoft} color={C.blue} icon={Accessibility}>Kursi roda</Badge>}
                   {j.riwayatPenyakit && !/^tidak ada/i.test(j.riwayatPenyakit.trim()) && <Badge bg={C.dangerSoft} color={C.danger} icon={Stethoscope}>Ada riwayat</Badge>}
                   {relCount > 0 && <Badge bg={C.greenSoft} color={C.green} icon={Link2}>Keluarga ({relCount})</Badge>}
+                  {(() => {
+                    const t = catatanTerakhir(j);
+                    if (!t || !KONDISI[t.kondisi]) return null;
+                    const k = KONDISI[t.kondisi];
+                    return <Badge bg={k.latar} color={k.warna} icon={k.ikon}>{k.label}</Badge>;
+                  })()}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${C.border}`, paddingTop: 11 }}>
                   <span style={{ fontSize: 12.5, color: C.muted, display: "inline-flex", alignItems: "center", gap: 5 }}><Phone size={13} /> {j.telepon || "—"}</span>
@@ -793,6 +818,12 @@ function JamaahPage({ list, setList }) {
     </div>
   );
 }
+
+const catatanTerakhir = (j) => {
+  const c = j?.catatanHarian || [];
+  if (!c.length) return null;
+  return [...c].sort((a, b) => (b.waktuISO || "").localeCompare(a.waktuISO || ""))[0];
+};
 
 function RelasiChips({ j, list, onOpen, dark }) {
   const rels = (j.relasi || []).map((r) => ({ ...r, ref: list.find((x) => x.id === Number(r.id)) })).filter((r) => r.ref);
@@ -809,7 +840,9 @@ function RelasiChips({ j, list, onOpen, dark }) {
   );
 }
 
-function JamaahDetail({ j, list, onBack, onEdit, onDelete, onOpen }) {
+function JamaahDetail({ j, list, onBack, onEdit, onDelete, onOpen, onPerbarui, pengguna }) {
+  const [tulisCatatan, setTulisCatatan] = useState(false);
+  const [ubahCatatan, setUbahCatatan] = useState(null);
   const y = hitungUsia(j.tanggalLahir); const u = labelUsia(y);
   const Row = ({ icon: Icon, label, children, accent = C.green }) => (
     <div style={{ display: "flex", gap: 12, padding: "13px 0", borderBottom: `1px solid ${C.border}` }}>
@@ -862,7 +895,168 @@ function JamaahDetail({ j, list, onBack, onEdit, onDelete, onOpen }) {
           </div>
         </div>
       </div>
+
+      {/* ---------- Catatan & kondisi harian ---------- */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, padding: 20, marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+              <NotebookPen size={18} color={C.green} /> Catatan & Kondisi Harian
+            </h3>
+            <p style={{ margin: "3px 0 0", fontSize: 12.5, color: C.muted }}>Riwayat pemantauan jamaah dari hari ke hari.</p>
+          </div>
+          <button className="btn" onClick={() => { setUbahCatatan(null); setTulisCatatan(true); }}
+            style={{ background: C.green, color: "#fff", padding: "9px 15px", borderRadius: 11, fontSize: 13 }}>
+            <Plus size={16} /> Tambah Catatan
+          </button>
+        </div>
+
+        <RiwayatCatatan j={j} onUbah={(c) => { setUbahCatatan(c); setTulisCatatan(true); }}
+          onHapus={(id) => {
+            if (!window.confirm("Hapus catatan ini?")) return;
+            onPerbarui({ catatanHarian: (j.catatanHarian || []).filter((c) => c.id !== id) });
+          }} />
+      </div>
+
+      {tulisCatatan && (
+        <CatatanHarianModal
+          awal={ubahCatatan}
+          namaPencatat={pengguna?.email?.split("@")[0] || ""}
+          onClose={() => { setTulisCatatan(false); setUbahCatatan(null); }}
+          onSimpan={(c) => {
+            const lama = j.catatanHarian || [];
+            const baru = c.id ? lama.map((x) => (x.id === c.id ? c : x)) : [...lama, { ...c, id: Date.now() }];
+            onPerbarui({ catatanHarian: baru });
+            setTulisCatatan(false); setUbahCatatan(null);
+          }} />
+      )}
     </div>
+  );
+}
+
+function RiwayatCatatan({ j, onUbah, onHapus }) {
+  const daftar = [...(j.catatanHarian || [])].sort((a, b) => (b.waktuISO || "").localeCompare(a.waktuISO || ""));
+
+  if (!daftar.length) {
+    return (
+      <div style={{ border: `1px dashed ${C.border}`, borderRadius: 14, padding: "30px 18px", textAlign: "center", color: C.muted }}>
+        <NotebookPen size={26} color={C.border} />
+        <p style={{ margin: "10px 0 0", fontSize: 13, fontWeight: 600 }}>Belum ada catatan harian.</p>
+        <p style={{ margin: "3px 0 0", fontSize: 12.5 }}>Catat kondisi jamaah setiap hari agar mudah dipantau.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {daftar.map((c) => {
+        const k = KONDISI[c.kondisi] || KONDISI.sehat;
+        return (
+          <div key={c.id} style={{ display: "flex", gap: 12, padding: "13px 14px", background: C.bg, borderRadius: 13, borderLeft: `4px solid ${k.warna}` }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: k.latar, color: k.warna, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <k.ikon size={17} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: k.warna }}>{k.label}</span>
+                <span style={{ fontSize: 11.5, color: C.muted }}>{c.tanggal ? tglRingkas(c.tanggal) : "—"}{c.waktu ? ` · ${c.waktu}` : ""}</span>
+              </div>
+              {c.isi && <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{c.isi}</div>}
+              {(c.suhu || c.tensi || c.obat) && (
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 7, fontSize: 12, color: C.muted }}>
+                  {c.suhu && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Thermometer size={12} /> {c.suhu}</span>}
+                  {c.tensi && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Activity size={12} /> {c.tensi}</span>}
+                  {c.obat && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><HeartPulse size={12} /> {c.obat}</span>}
+                </div>
+              )}
+              {c.pencatat && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 7, display: "flex", alignItems: "center", gap: 4 }}><User size={12} /> {c.pencatat}</div>}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <button className="btn iconbtn" onClick={() => onUbah(c)} title="Ubah" style={{ background: "#fff", padding: 7, borderRadius: 8 }}><Pencil size={13} /></button>
+              <button className="btn iconbtn" onClick={() => onHapus(c.id)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 7, borderRadius: 8 }}><Trash2 size={13} /></button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CatatanHarianModal({ awal, namaPencatat, onClose, onSimpan }) {
+  const hariIni = new Date().toISOString().slice(0, 10);
+  const jamIni = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+  const [f, setF] = useState(awal || {
+    tanggal: hariIni, waktu: jamIni, kondisi: "sehat", isi: "",
+    suhu: "", tensi: "", obat: "", pencatat: namaPencatat,
+    waktuISO: new Date().toISOString(),
+  });
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const bisa = f.isi.trim() || f.suhu || f.tensi || f.obat;
+
+  const simpan = () => {
+    const waktuISO = new Date(`${f.tanggal}T${(f.waktu || "00:00")}:00`).toISOString();
+    onSimpan({ ...f, waktuISO });
+  };
+
+  return (
+    <Modal onClose={onClose} width={440}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+            <NotebookPen size={18} color={C.green} /> {awal ? "Ubah Catatan" : "Catatan Harian"}
+          </h3>
+          <button className="btn iconbtn" onClick={onClose} style={{ background: C.bg, padding: 7, borderRadius: 9 }}><X size={16} /></button>
+        </div>
+
+        <Label>Kondisi jamaah</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 14 }}>
+          {Object.entries(KONDISI).map(([k, v]) => {
+            const on = f.kondisi === k;
+            return (
+              <button key={k} className="btn" onClick={() => set("kondisi", k)}
+                style={{ justifyContent: "flex-start", padding: "10px 12px", borderRadius: 11, fontSize: 12.5,
+                  background: on ? v.latar : "#fff", color: on ? v.warna : C.muted,
+                  border: `1.5px solid ${on ? v.warna : C.border}` }}>
+                <v.ikon size={15} /> {v.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <Grid>
+          <div><Label>Tanggal</Label><input className="field" type="date" style={inputStyle} value={f.tanggal} onChange={(e) => set("tanggal", e.target.value)} /></div>
+          <div><Label>Waktu</Label><input className="field" type="time" style={inputStyle} value={f.waktu} onChange={(e) => set("waktu", e.target.value)} /></div>
+        </Grid>
+
+        <div style={{ marginTop: 14 }}>
+          <Label>Catatan</Label>
+          <textarea className="field" rows={3} style={{ ...inputStyle, resize: "vertical" }} value={f.isi} onChange={(e) => set("isi", e.target.value)}
+            placeholder="cth. Mengeluh pusing setelah thawaf, sudah istirahat dan minum air zamzam." />
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <Label>Pemeriksaan (opsional)</Label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <input className="field" style={inputStyle} value={f.suhu} onChange={(e) => set("suhu", e.target.value)} placeholder="Suhu, cth. 37,5°C" />
+            <input className="field" style={inputStyle} value={f.tensi} onChange={(e) => set("tensi", e.target.value)} placeholder="Tensi, cth. 140/90" />
+          </div>
+          <input className="field" style={{ ...inputStyle, marginTop: 8 }} value={f.obat} onChange={(e) => set("obat", e.target.value)} placeholder="Obat yang diberikan (opsional)" />
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <Label>Dicatat oleh</Label>
+          <input className="field" style={inputStyle} value={f.pencatat} onChange={(e) => set("pencatat", e.target.value)} placeholder="Nama pembimbing" />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          <button className="btn" onClick={onClose} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "10px 18px", borderRadius: 11 }}>Batal</button>
+          <button className="btn" disabled={!bisa} onClick={simpan}
+            style={{ background: bisa ? C.green : C.border, color: "#fff", padding: "10px 20px", borderRadius: 11, cursor: bisa ? "pointer" : "not-allowed" }}>
+            <Check size={16} /> Simpan
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -1351,12 +1545,65 @@ function AbsensiPage({ agenda, list, absen, setAbsen }) {
 /* ============================================================
    LOKASI PAGE — jarak & arah dari HP pembimbing
    ============================================================ */
+/* ---------- kompas: arah hadap HP ----------
+   Membaca sensor magnetometer supaya panah menunjuk arah
+   yang benar walau HP diputar.
+-------------------------------------------- */
+function useArahHP() {
+  const [arah, setArah] = useState(null);      // 0 = utara, searah jarum jam
+  const [status, setStatus] = useState("mati"); // mati | aktif | ditolak | tidakAda
+  const pasangRef = useRef(null);
+
+  const tangani = (e) => {
+    let h = null;
+    // iOS menyediakan nilai siap pakai
+    if (typeof e.webkitCompassHeading === "number" && !isNaN(e.webkitCompassHeading)) {
+      h = e.webkitCompassHeading;
+    } else if (typeof e.alpha === "number" && e.alpha !== null) {
+      // Android: alpha berlawanan arah jarum jam dari utara
+      h = 360 - e.alpha;
+      const layar = window.screen?.orientation?.angle ?? window.orientation ?? 0;
+      h = h + (typeof layar === "number" ? layar : 0);
+    }
+    if (h != null && !isNaN(h)) setArah(((h % 360) + 360) % 360);
+  };
+
+  const nyalakan = async () => {
+    if (typeof window === "undefined" || !("DeviceOrientationEvent" in window)) {
+      setStatus("tidakAda"); return;
+    }
+    try {
+      if (typeof DeviceOrientationEvent.requestPermission === "function") {
+        const hasil = await DeviceOrientationEvent.requestPermission();
+        if (hasil !== "granted") { setStatus("ditolak"); return; }
+      }
+    } catch { setStatus("ditolak"); return; }
+
+    const jenis = "ondeviceorientationabsolute" in window ? "deviceorientationabsolute" : "deviceorientation";
+    window.addEventListener(jenis, tangani, true);
+    pasangRef.current = jenis;
+    setStatus("aktif");
+  };
+
+  const matikan = () => {
+    if (pasangRef.current) window.removeEventListener(pasangRef.current, tangani, true);
+    pasangRef.current = null;
+    setArah(null);
+    setStatus("mati");
+  };
+
+  useEffect(() => () => { if (pasangRef.current) window.removeEventListener(pasangRef.current, tangani, true); }, []);
+
+  return { arah, status, nyalakan, matikan };
+}
+
 function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitikKumpul, missing, setMissing }) {
   const [pos, setPos] = useState(null);
   const [tracking, setTracking] = useState(false);
   const [errMsg, setErrMsg] = useState("");
   const [modal, setModal] = useState(null); // 'tersesat' | 'penting' | 'kumpul'
   const watchIdRef = useRef(null);
+  const kompas = useArahHP();
 
   useEffect(() => () => { if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current); }, []);
 
@@ -1364,13 +1611,17 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
     if (!navigator.geolocation) { setErrMsg("Perangkat/browser ini tidak mendukung deteksi lokasi."); return; }
     if (!window.isSecureContext) { setErrMsg("Deteksi lokasi butuh koneksi aman (HTTPS). Fitur ini akan aktif setelah aplikasi di-deploy dengan HTTPS."); }
     setErrMsg(""); setTracking(true);
+    kompas.nyalakan();
     watchIdRef.current = navigator.geolocation.watchPosition(
       (p) => { setPos({ lat: p.coords.latitude, lng: p.coords.longitude, akurasi: p.coords.accuracy }); setErrMsg(""); },
       (err) => { setTracking(false); setErrMsg(err.code === 1 ? "Izin lokasi ditolak. Aktifkan izin lokasi untuk situs ini di pengaturan browser HP." : "Gagal membaca lokasi. Pastikan GPS aktif dan coba lagi."); },
       { enableHighAccuracy: true, maximumAge: 4000, timeout: 15000 }
     );
   };
-  const berhentiLokasi = () => { if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current); watchIdRef.current = null; setTracking(false); };
+  const berhentiLokasi = () => {
+    if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
+    watchIdRef.current = null; setTracking(false); kompas.matikan();
+  };
 
   const missingEnriched = missing.map((m) => ({ ...m, jamaah: list.find((j) => j.id === m.jamaahId) })).filter((m) => m.jamaah);
 
@@ -1392,6 +1643,20 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
             {pos ? <>Koordinat: {pos.lat.toFixed(5)}, {pos.lng.toFixed(5)} · akurasi ±{Math.round(pos.akurasi)} m</> : "Aktifkan untuk melihat jarak & arah ke setiap titik."}
           </div>
           {errMsg && <div style={{ fontSize: 12.5, color: C.danger, marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}><AlertTriangle size={13} /> {errMsg}</div>}
+          {tracking && (
+            <div style={{ fontSize: 12, marginTop: 5, display: "flex", alignItems: "center", gap: 6, color: kompas.status === "aktif" ? C.green : C.muted, flexWrap: "wrap" }}>
+              <Compass size={13} />
+              {kompas.status === "aktif" && kompas.arah != null
+                ? <>Kompas aktif — HP menghadap {arahMataAngin(kompas.arah)} ({Math.round(kompas.arah)}°). Panah sudah menyesuaikan arah HP.</>
+                : kompas.status === "aktif"
+                ? <>Membaca sensor arah… coba putar HP membentuk angka 8.</>
+                : kompas.status === "ditolak"
+                ? <>Izin sensor arah ditolak — panah memakai arah dari Utara.</>
+                : <>Sensor arah tidak tersedia — panah memakai arah dari Utara.
+                    <button className="btn" onClick={kompas.nyalakan} style={{ background: "transparent", color: C.green, padding: 0, fontSize: 12, textDecoration: "underline" }}>Coba nyalakan</button>
+                  </>}
+            </div>
+          )}
         </div>
         {tracking ? (
           <button className="btn" onClick={berhentiLokasi} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "9px 16px", borderRadius: 11 }}>Matikan</button>
@@ -1410,7 +1675,7 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
       ) : (
         <div className="kartu-grid" style={{ marginBottom: 24 }}>
           {missingEnriched.map((m) => (
-            <TitikCard key={m.id} pos={pos} lat={m.lat} lng={m.lng} nama={m.jamaah.nama} accent={C.danger} accentBg={C.dangerSoft}
+            <TitikCard key={m.id} arahHP={kompas.arah} pos={pos} lat={m.lat} lng={m.lng} nama={m.jamaah.nama} accent={C.danger} accentBg={C.dangerSoft}
               icon={AlertTriangle} avatarFoto={m.jamaah.foto}
               catatan={m.catatan || "Belum kumpul di titik yang ditentukan."}
               footer={
@@ -1435,7 +1700,7 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
       ) : (
         <div className="kartu-grid" style={{ marginBottom: 24 }}>
           {titikKumpul.map((t) => (
-            <TitikCard key={t.id} pos={pos} lat={t.lat} lng={t.lng} nama={t.nama} catatan={t.catatan} gambar={t.gambar} accent={C.green} accentBg={C.greenSoft} icon={Flag}
+            <TitikCard key={t.id} arahHP={kompas.arah} pos={pos} lat={t.lat} lng={t.lng} nama={t.nama} catatan={t.catatan} gambar={t.gambar} accent={C.green} accentBg={C.greenSoft} icon={Flag}
               footer={<button className="btn" onClick={() => setTitikKumpul((s) => s.filter((x) => x.id !== t.id))} style={{ marginTop: 10, background: C.bg, color: C.muted, padding: "6px 11px", borderRadius: 9, fontSize: 11.5 }}><Trash2 size={13} /> Hapus</button>} />
           ))}
         </div>
@@ -1448,7 +1713,7 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
       </div>
       <div className="kartu-grid">
         {titikPenting.map((t) => (
-          <TitikCard key={t.id} pos={pos} lat={t.lat} lng={t.lng} nama={t.nama} catatan={t.catatan} gambar={t.gambar} accent={C.goldDeep} accentBg={C.goldSoft} icon={Landmark}
+          <TitikCard key={t.id} arahHP={kompas.arah} pos={pos} lat={t.lat} lng={t.lng} nama={t.nama} catatan={t.catatan} gambar={t.gambar} accent={C.goldDeep} accentBg={C.goldSoft} icon={Landmark}
             footer={<button className="btn" onClick={() => setTitikPenting((s) => s.filter((x) => x.id !== t.id))} style={{ marginTop: 10, background: C.bg, color: C.muted, padding: "6px 11px", borderRadius: 9, fontSize: 11.5 }}><Trash2 size={13} /> Hapus</button>} />
         ))}
       </div>
@@ -1460,10 +1725,13 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
   );
 }
 
-function TitikCard({ pos, lat, lng, nama, catatan, accent, accentBg, icon: Icon, footer, avatarFoto, gambar }) {
+function TitikCard({ pos, lat, lng, nama, catatan, accent, accentBg, icon: Icon, footer, avatarFoto, gambar, arahHP }) {
   const punyaPos = pos && lat != null && lng != null;
   const jarak = punyaPos ? jarakMeter(pos.lat, pos.lng, lat, lng) : null;
   const arah = punyaPos ? bearingDerajat(pos.lat, pos.lng, lat, lng) : null;
+  // Kalau sensor arah HP aktif, panah diputar relatif terhadap arah hadap HP
+  const pakaiKompas = punyaPos && arahHP != null;
+  const putaran = punyaPos ? (pakaiKompas ? (arah - arahHP + 360) % 360 : arah) : 0;
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 15 }}>
       {gambar && <img src={gambar.data} alt={nama} style={{ width: "100%", height: 110, objectFit: "cover", borderRadius: 11, marginBottom: 12, display: "block" }} />}
@@ -1480,21 +1748,65 @@ function TitikCard({ pos, lat, lng, nama, catatan, accent, accentBg, icon: Icon,
       <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12 }}>
         {punyaPos ? (
           <>
-            <div style={{ width: 44, height: 44, borderRadius: 99, border: `2px solid ${accent}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, position: "relative" }}>
-              <Navigation size={20} color={accent} style={{ transform: `rotate(${arah}deg)`, transition: "transform .3s ease" }} />
+            <div style={{
+              width: 50, height: 50, borderRadius: 99, flexShrink: 0, position: "relative",
+              border: `2px solid ${pakaiKompas ? accent : accent + "33"}`,
+              background: pakaiKompas ? accent + "0f" : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {/* penanda Utara ikut berputar mengikuti arah HP */}
+              {pakaiKompas && (
+                <span style={{
+                  position: "absolute", inset: 0,
+                  transform: `rotate(${(360 - arahHP) % 360}deg)`,
+                  transition: "transform .18s linear",
+                }}>
+                  <span style={{ position: "absolute", top: 1, left: "50%", transform: "translateX(-50%)", fontSize: 8, fontWeight: 800, color: C.muted }}>U</span>
+                </span>
+              )}
+              <Navigation size={21} color={accent} fill={pakaiKompas ? accent : "none"}
+                style={{ transform: `rotate(${putaran}deg)`, transition: "transform .18s linear" }} />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 18, fontWeight: 800, color: accent, lineHeight: 1 }}>{formatJarak(jarak)}</div>
-              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>{arahMataAngin(arah)} · {Math.round(arah)}° dari Utara</div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>
+                {pakaiKompas ? <><strong style={{ color: accent }}>{putarKeInstruksi(putaran)}</strong> · {arahMataAngin(arah)}</> : <>{arahMataAngin(arah)} · {Math.round(arah)}° dari Utara</>}
+              </div>
             </div>
           </>
         ) : (
           <div style={{ fontSize: 12, color: C.muted, display: "flex", alignItems: "center", gap: 6 }}><Compass size={15} color={C.border} /> Aktifkan lokasi Anda untuk lihat jarak & arah</div>
         )}
       </div>
+
+      {lat != null && lng != null && (
+        <div style={{ display: "flex", gap: 7, marginTop: 11 }}>
+          <a href={mapsRute(lat, lng)} target="_blank" rel="noreferrer" className="btn"
+            style={{ flex: 1, justifyContent: "center", textDecoration: "none", background: C.greenSoft, color: C.green, padding: "8px 10px", borderRadius: 10, fontSize: 12.5 }}>
+            <Route size={14} /> Rute
+          </a>
+          <a href={mapsCari(lat, lng)} target="_blank" rel="noreferrer" className="btn"
+            style={{ flex: 1, justifyContent: "center", textDecoration: "none", background: C.bg, color: C.muted, border: `1px solid ${C.border}`, padding: "8px 10px", borderRadius: 10, fontSize: 12.5 }}>
+            <MapIcon size={14} /> Peta
+          </a>
+        </div>
+      )}
       {footer}
     </div>
   );
+}
+
+/* Mengubah sudut relatif menjadi kalimat arah yang mudah diikuti */
+function putarKeInstruksi(d) {
+  const a = ((d % 360) + 360) % 360;
+  if (a < 20 || a > 340) return "Lurus ke depan";
+  if (a < 70) return "Serong kanan";
+  if (a < 110) return "Ke kanan";
+  if (a < 160) return "Serong kanan belakang";
+  if (a < 200) return "Putar balik";
+  if (a < 250) return "Serong kiri belakang";
+  if (a < 290) return "Ke kiri";
+  return "Serong kiri";
 }
 
 function TandaiTersesatModal({ list, missing, pos, onClose, onSave }) {
@@ -1808,6 +2120,25 @@ function LaporanForm({ tg, terkonfigurasi, agenda, list, absen, missing, onCance
 
   const sisip = (teks) => setF((s) => ({ ...s, isi: s.isi ? s.isi + "\n\n" + teks : teks }));
   const genRingkasan = () => { const lansia = list.filter((j) => (hitungUsia(j.tanggalLahir) ?? 0) >= 60).length; const kr = list.filter((j) => j.kursiRoda).length; sisip(`Ringkasan jamaah:\n- Total jamaah: ${list.length}\n- Lansia (60+): ${lansia}\n- Pengguna kursi roda: ${kr}`); };
+  const genKondisi = () => {
+    const hariIni = new Date().toISOString().slice(0, 10);
+    const baris = [];
+    list.forEach((j) => {
+      const hari = (j.catatanHarian || []).filter((c) => c.tanggal === hariIni);
+      if (!hari.length) return;
+      const t = hari.sort((a, b) => (b.waktuISO || "").localeCompare(a.waktuISO || ""))[0];
+      const k = KONDISI[t.kondisi]?.label || "-";
+      const rinci = [t.isi, t.suhu && `suhu ${t.suhu}`, t.tensi && `tensi ${t.tensi}`, t.obat && `obat: ${t.obat}`].filter(Boolean).join(" — ");
+      baris.push(`- ${j.nama} [${k}]${rinci ? `: ${rinci}` : ""}`);
+    });
+    if (!baris.length) return sisip("Belum ada catatan kondisi jamaah untuk hari ini.");
+    const perluPerhatian = list.filter((j) => {
+      const t = catatanTerakhir(j);
+      return t && (t.kondisi === "sakit" || t.kondisi === "perhatian");
+    }).length;
+    sisip([`Kondisi jamaah hari ini (${baris.length} tercatat, ${perluPerhatian} perlu perhatian):`, ...baris].join("\n"));
+  };
+
   const genTersesat = () => { if (!missing.length) return sisip("Tidak ada jamaah yang ditandai tersesat."); sisip("Jamaah tersesat / belum kumpul:\n" + missing.map((m) => { const j = list.find((x) => x.id === m.jamaahId); return `- ${j ? j.nama : "?"}${m.catatan ? ` (${m.catatan})` : ""}`; }).join("\n")); };
   const genAbsensi = () => { const ag = agenda.find((a) => a.id === Number(agSel)); if (!ag) return; const rec = absen[ag.id] || {}; const grp = (st) => list.filter((j) => rec[j.id] === st).map((j) => j.nama); const h = grp("hadir"), iz = grp("izin"), t = grp("tidak"); sisip([`Absensi — ${ag.judul} (${tglRingkas(ag.tanggal)} ${ag.waktu || ""}):`, `Hadir (${h.length}): ${h.join(", ") || "-"}`, `Izin (${iz.length}): ${iz.join(", ") || "-"}`, `Tidak hadir (${t.length}): ${t.join(", ") || "-"}`].join("\n")); };
 
@@ -1831,6 +2162,7 @@ function LaporanForm({ tg, terkonfigurasi, agenda, list, absen, missing, onCance
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <button className="btn" onClick={genRingkasan} style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.ink, padding: "7px 12px", borderRadius: 9, fontSize: 12.5 }}><Users size={14} /> Ringkasan jamaah</button>
             <button className="btn" onClick={genTersesat} style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.ink, padding: "7px 12px", borderRadius: 9, fontSize: 12.5 }}><AlertTriangle size={14} /> Jamaah tersesat</button>
+            <button className="btn" onClick={genKondisi} style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.ink, padding: "7px 12px", borderRadius: 9, fontSize: 12.5 }}><HeartPulse size={14} /> Kondisi jamaah hari ini</button>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <select className="field" style={{ ...inputStyle, padding: "7px 10px", width: "auto" }} value={agSel} onChange={(e) => setAgSel(e.target.value)}>
                 <option value="">— pilih agenda —</option>
