@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Hanya pembimbing yang sudah login yang boleh membaca & menulis.
+    // Data ini berisi informasi pribadi dan kesehatan jamaah,
+    // jadi jangan longgarkan aturan di bawah ini.
+
+    function sudahLogin() {
+      return request.auth != null;
+    }
+
+    match /jamaah/{id}       { allow read, write: if sudahLogin(); }
+    match /agenda/{id}       { allow read, write: if sudahLogin(); }
+    match /doa/{id}          { allow read, write: if sudahLogin(); }
+    match /laporan/{id}      { allow read, write: if sudahLogin(); }
+    match /titikKumpul/{id}  { allow read, write: if sudahLogin(); }
+    match /titikPenting/{id} { allow read, write: if sudahLogin(); }
+    match /tersesat/{id}     { allow read, write: if sudahLogin(); }
+    match /data/{id}         { allow read, write: if sudahLogin(); }
+    // data/telegram menyimpan token bot — hanya untuk pembimbing yang login
+
+    // Selain yang disebut di atas: ditolak
+    match /{document=**} { allow read, write: if false; }
+  }
+}
