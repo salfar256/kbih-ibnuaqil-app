@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { usePengguna, useDataTersinkron, useKoleksiTersinkron, kecilkanGambar, rapikanTautan, keluar, pesanGalat } from "./cloud";
+import { usePengguna, useDataTersinkron, useKoleksiTersinkron, kecilkanGambar, rapikanTautan, keluar, pesanGalat, hapusPeriodeLengkap, hitungIsiPeriode } from "./cloud";
 import LoginGate from "./LoginGate";
 import {
   Users, Plus, Search, Pencil, Trash2, ArrowLeft, Phone, MessageCircle,
@@ -9,7 +9,9 @@ import {
   ChevronRight, Armchair, Navigation, Compass, AlertTriangle, Crosshair,
   Landmark, Flag, LocateFixed, FileText, Send, Settings2, RefreshCw, Eye,
   ShieldAlert, BookOpen, FileUp, ImagePlus, Paperclip, Download,
-  LogOut, Loader2, CloudOff, Link as LinkIcon,
+  LogOut, Loader2, CloudOff, Link as LinkIcon, Scale, LayoutGrid,
+  Tags, ChevronDown, Download as DownloadIcon, Smartphone, AlertOctagon,
+  ArrowRightLeft, Home,
 } from "lucide-react";
 
 /* ============================================================
@@ -157,6 +159,16 @@ const SEED_DOA = [
   { id: 1, kategori: "Ihram", judul: "Niat Umroh", arab: "لَبَّيْكَ اللَّهُمَّ عُمْرَةً", latin: "Labbaika Allahumma 'umratan", arti: "Aku penuhi panggilan-Mu ya Allah untuk berumroh.", catatan: "Dibaca saat memulai ihram di miqat.", berkas: null },
   { id: 2, kategori: "Talbiyah", judul: "Bacaan Talbiyah", arab: "لَبَّيْكَ اللَّهُمَّ لَبَّيْكَ، لَبَّيْكَ لَا شَرِيكَ لَكَ لَبَّيْكَ", latin: "Labbaika Allahumma labbaik, labbaika laa syariika laka labbaik", arti: "Aku penuhi panggilan-Mu ya Allah, tiada sekutu bagi-Mu.", catatan: "Diperbanyak sejak ihram hingga mulai thawaf.", berkas: null },
   { id: 3, kategori: "Thawaf", judul: "Doa Antara Rukun Yamani dan Hajar Aswad", arab: "رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ", latin: "Rabbanaa aatinaa fid-dunyaa hasanah wa fil-aakhirati hasanah wa qinaa 'adzaaban-naar", arti: "Ya Tuhan kami, berilah kami kebaikan di dunia dan kebaikan di akhirat, dan lindungilah kami dari azab neraka.", catatan: "", berkas: null },
+];
+const SEED_PERIODE = [
+  { id: 1, nama: "Umroh Reguler Agustus", jenis: "Umroh", tahun: "2026", berangkat: "2026-08-12", pulang: "2026-08-21", catatan: "Rombongan A & B, 2 pembimbing.", dibuat: "2026-07-18T00:00:00.000Z" },
+];
+const SEED_KAT_DOA = ["Ihram", "Talbiyah", "Thawaf", "Sa'i", "Ziarah", "Harian"];
+const SEED_KAT_FIQH = ["Rukun & Wajib", "Larangan Ihram", "Dam & Denda", "Thawaf", "Sa'i", "Wanita"];
+const SEED_FIQH = [
+  { id: 1, kategori: "Rukun & Wajib", judul: "Rukun Umroh", isi: "Rukun umroh ada empat: (1) ihram disertai niat, (2) thawaf, (3) sa'i, (4) tahallul (mencukur atau memotong rambut). Bila salah satu rukun ditinggalkan, umroh tidak sah dan tidak dapat diganti dengan dam.", dalil: "Disepakati mayoritas ulama; sebagian menambahkan tertib sebagai rukun.", rujukan: "Fikih Manasik — mazhab Syafi'i", catatan: "Tekankan pada jamaah saat manasik: rukun tidak bisa diganti denda.", berkas: null },
+  { id: 2, kategori: "Larangan Ihram", judul: "Larangan Selama Ihram", isi: "Antara lain: memakai pakaian berjahit bagi laki-laki, menutup kepala bagi laki-laki, menutup wajah dan telapak tangan bagi perempuan, memakai wewangian, memotong kuku dan rambut, berburu binatang darat, memotong tanaman tanah haram, melangsungkan akad nikah, dan berhubungan suami istri.", dalil: "QS. Al-Baqarah: 197 dan hadis-hadis terkait.", rujukan: "Fikih Manasik", catatan: "Ingatkan sebelum miqat, terutama soal wewangian di sabun dan tisu basah.", berkas: null },
+  { id: 3, kategori: "Dam & Denda", judul: "Dam karena Meninggalkan Wajib", isi: "Meninggalkan kewajiban umroh (misalnya ihram tidak dari miqat) tidak membatalkan umroh, tetapi mewajibkan dam berupa menyembelih seekor kambing. Bila tidak mampu, diganti puasa sepuluh hari: tiga hari di tanah suci dan tujuh hari setelah kembali.", dalil: "QS. Al-Baqarah: 196.", rujukan: "Fikih Manasik", catatan: "Bedakan dengan rukun yang tidak bisa diganti dam.", berkas: null },
 ];
 const SEED_LAPORAN = [
   { id: 1, jenis: "Kegiatan", judul: "Manasik hari pertama selesai", isi: "Manasik berjalan lancar, dihadiri 3 jamaah. Materi thawaf & sa'i tersampaikan. Jamaah Aminah perlu perhatian ekstra karena kursi roda.", pencatat: "Ustadz Fulan", waktuISO: "2026-08-05T10:15:00.000Z", status: "lokal" },
@@ -524,29 +536,61 @@ function LayarMuat({ pesan }) {
 }
 
 function AppInti({ pengguna }) {
-  const [list, setList, siapList] = useKoleksiTersinkron("jamaah", SEED);
-  const [agenda, setAgenda] = useKoleksiTersinkron("agenda", SEED_AGENDA);
-  const [seats, setSeats] = useDataTersinkron("kursi", SEED_SEATS);
-  const [absen, setAbsen] = useDataTersinkron("absensi", SEED_ABSEN);
-  const [page, setPage] = useState("jamaah");
-  const [titikPenting, setTitikPenting] = useKoleksiTersinkron("titikPenting", SEED_TITIK_PENTING);
-  const [titikKumpul, setTitikKumpul] = useKoleksiTersinkron("titikKumpul", SEED_TITIK_KUMPUL);
-  const [missing, setMissing] = useKoleksiTersinkron("tersesat", []);
-  const [laporan, setLaporan] = useKoleksiTersinkron("laporan", SEED_LAPORAN);
+  const [periode, setPeriode, siapPeriode] = useKoleksiTersinkron("periode", SEED_PERIODE);
+  const [idAktif, setIdAktif] = useState(() => {
+    try { return localStorage.getItem("kbih-periode") || null; } catch { return null; }
+  });
+
+  // Pastikan periode aktif selalu ada
+  useEffect(() => {
+    if (!siapPeriode || !periode.length) return;
+    const ada = periode.some((p) => String(p.id) === String(idAktif));
+    if (!ada) pilihPeriode(periode[0].id);
+  }, [siapPeriode, periode, idAktif]);
+
+  const pilihPeriode = (id) => {
+    setIdAktif(String(id));
+    try { localStorage.setItem("kbih-periode", String(id)); } catch { /* abaikan */ }
+  };
+
+  const pid = String(idAktif || (periode[0] && periode[0].id) || "kosong");
+  const periodeAktif = periode.find((p) => String(p.id) === pid) || null;
+
+  // --- Data per periode ---
+  const [list, setList, siapList] = useKoleksiTersinkron(["periode", pid, "jamaah"], SEED);
+  const [agenda, setAgenda] = useKoleksiTersinkron(["periode", pid, "agenda"], SEED_AGENDA);
+  const [seats, setSeats] = useDataTersinkron(["periode", pid, "data", "kursi"], SEED_SEATS);
+  const [absen, setAbsen] = useDataTersinkron(["periode", pid, "data", "absensi"], SEED_ABSEN);
+  const [titikPenting, setTitikPenting] = useKoleksiTersinkron(["periode", pid, "titikPenting"], SEED_TITIK_PENTING);
+  const [titikKumpul, setTitikKumpul] = useKoleksiTersinkron(["periode", pid, "titikKumpul"], SEED_TITIK_KUMPUL);
+  const [missing, setMissing] = useKoleksiTersinkron(["periode", pid, "tersesat"], []);
+  const [laporan, setLaporan] = useKoleksiTersinkron(["periode", pid, "laporan"], SEED_LAPORAN);
+
+  // --- Data bersama semua periode ---
   const [doa, setDoa] = useKoleksiTersinkron("doa", SEED_DOA);
+  const [fiqh, setFiqh] = useKoleksiTersinkron("fiqh", SEED_FIQH);
+  const [katDoa, setKatDoa] = useDataTersinkron("kategoriDoa", SEED_KAT_DOA);
+  const [katFiqh, setKatFiqh] = useDataTersinkron("kategoriFiqh", SEED_KAT_FIQH);
   const [tg, setTg] = useDataTersinkron("telegram", TG_KOSONG);
+
+  const [page, setPage] = useState("periode");
+  const pasang = usePemasangan();
 
   const byId = (id) => list.find((j) => j.id === Number(id));
 
   const nav = [
+    { id: "periode", label: "Periode", icon: LayoutGrid },
     { id: "jamaah", label: "Jamaah", icon: Users },
     { id: "bus", label: "Kursi Bis", icon: Bus },
     { id: "agenda", label: "Agenda", icon: CalendarDays },
     { id: "absensi", label: "Absensi", icon: ClipboardCheck },
     { id: "lokasi", label: "Lokasi", icon: Navigation, alert: missing.length > 0 },
     { id: "doa", label: "Doa", icon: BookOpen },
+    { id: "fiqh", label: "Fiqh", icon: Scale },
     { id: "laporan", label: "Laporan", icon: FileText },
   ];
+  // Halaman yang butuh periode aktif
+  const perluPeriode = ["jamaah", "bus", "agenda", "absensi", "lokasi", "laporan"];
 
   return (
     <div className="kbih-root" style={{ background: C.bg, minHeight: "100vh" }}>
@@ -567,6 +611,12 @@ function AppInti({ pengguna }) {
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             <DualClock />
             <div style={{ display: "flex", alignItems: "center", gap: 9, paddingLeft: 16, borderLeft: "1px solid #ffffff22" }}>
+              {pasang.bisa && (
+                <button className="btn" onClick={pasang.pasang} title="Pasang aplikasi di HP"
+                  style={{ background: C.gold, color: "#3a2c05", padding: "8px 13px", borderRadius: 11, fontSize: 12.5 }}>
+                  <DownloadIcon size={15} /> <span className="sembunyi-hp">Pasang Aplikasi</span>
+                </button>
+              )}
               <div style={{ textAlign: "right", lineHeight: 1.3 }}>
                 <div className="sembunyi-hp" style={{ fontSize: 11, color: "#b9cdc0" }}>Masuk sebagai</div>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pengguna.email}</div>
@@ -594,14 +644,44 @@ function AppInti({ pengguna }) {
         </div>
       </div>
 
+      {/* Pita periode aktif */}
+      {periodeAktif && page !== "periode" && (
+        <div style={{ background: C.greenSoft, borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ maxWidth: 1160, margin: "0 auto", padding: "9px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Badge bg={periodeAktif.jenis === "Haji" ? C.goldSoft : "#fff"} color={periodeAktif.jenis === "Haji" ? C.goldDeep : C.green}>
+              {periodeAktif.jenis}
+            </Badge>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{periodeAktif.nama}</span>
+            <span className="sembunyi-hp" style={{ fontSize: 12, color: C.muted }}>
+              {periodeAktif.berangkat ? tglRingkas(periodeAktif.berangkat) : "—"}
+            </span>
+            <button className="btn" onClick={() => setPage("periode")}
+              style={{ marginLeft: "auto", background: "#fff", color: C.green, border: `1px solid ${C.green}33`, padding: "6px 12px", borderRadius: 9, fontSize: 12 }}>
+              <ArrowRightLeft size={14} /> Ganti
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="wrap">
+        {page !== "periode" && perluPeriode.includes(page) && !periodeAktif ? (
+          <TanpaPeriode onBuka={() => setPage("periode")} />
+        ) : (
+        <>
+        {page === "periode" && (
+          <PeriodePage periode={periode} setPeriode={setPeriode} idAktif={pid}
+            onPilih={(id) => { pilihPeriode(id); setPage("jamaah"); }} siap={siapPeriode} />
+        )}
         {page === "jamaah" && <JamaahPage list={list} setList={setList} />}
         {page === "bus" && <BusPage list={list} seats={seats} setSeats={setSeats} byId={byId} />}
         {page === "agenda" && <AgendaPage agenda={agenda} setAgenda={setAgenda} list={list} absen={absen} setAbsen={setAbsen} />}
         {page === "absensi" && <AbsensiPage agenda={agenda} list={list} absen={absen} setAbsen={setAbsen} />}
         {page === "lokasi" && <LokasiPage list={list} titikPenting={titikPenting} setTitikPenting={setTitikPenting} titikKumpul={titikKumpul} setTitikKumpul={setTitikKumpul} missing={missing} setMissing={setMissing} />}
-        {page === "doa" && <DoaPage doa={doa} setDoa={setDoa} />}
-        {page === "laporan" && <LaporanPage laporan={laporan} setLaporan={setLaporan} tg={{ ...tg, pencatat: tg?.pencatat || pengguna.email?.split("@")[0] || "" }} setTg={setTg} agenda={agenda} list={list} absen={absen} missing={missing} />}
+        {page === "doa" && <DoaPage doa={doa} setDoa={setDoa} kategori={katDoa || []} setKategori={setKatDoa} />}
+        {page === "fiqh" && <FiqhPage fiqh={fiqh} setFiqh={setFiqh} kategori={katFiqh || []} setKategori={setKatFiqh} />}
+        {page === "laporan" && <LaporanPage laporan={laporan} setLaporan={setLaporan} tg={{ ...tg, pencatat: tg?.pencatat || pengguna.email?.split("@")[0] || "" }} setTg={setTg} agenda={agenda} list={list} absen={absen} missing={missing} periodeAktif={periodeAktif} />}
+        </>
+        )}
       </main>
 
       <footer style={{ textAlign: "center", padding: "0 20px 34px", color: C.muted, fontSize: 12 }}>
@@ -1777,19 +1857,17 @@ function LaporanForm({ tg, terkonfigurasi, agenda, list, absen, missing, onCance
 /* ============================================================
    DOA PAGE — kumpulan doa, tulis & unggah, dengan pencarian
    ============================================================ */
-function DoaPage({ doa, setDoa }) {
+function DoaPage({ doa, setDoa, kategori, setKategori }) {
   const [mode, setMode] = useState("list");
   const [editing, setEditing] = useState(null);
   const [q, setQ] = useState("");
   const [kat, setKat] = useState("Semua");
-
-  const kategoriList = useMemo(() => ["Semua", ...Array.from(new Set(doa.map((d) => d.kategori).filter(Boolean)))], [doa]);
+  const [kelola, setKelola] = useState(false);
 
   const hasil = useMemo(() => {
     const s = q.trim().toLowerCase();
     return doa.filter((d) => {
-      const cocokKat = kat === "Semua" || d.kategori === kat;
-      if (!cocokKat) return false;
+      if (kat !== "Semua" && d.kategori !== kat) return false;
       if (!s) return true;
       return [d.judul, d.kategori, d.latin, d.arti, d.catatan, d.arab].join(" ").toLowerCase().includes(s);
     });
@@ -1802,7 +1880,7 @@ function DoaPage({ doa, setDoa }) {
   };
   const hapus = (id) => { if (window.confirm("Hapus doa ini?")) setDoa((l) => l.filter((x) => x.id !== id)); };
 
-  if (mode === "form") return <DoaForm initial={editing} kategoriAda={kategoriList.filter((k) => k !== "Semua")} onCancel={() => setMode("list")} onSave={simpan} />;
+  if (mode === "form") return <DoaForm initial={editing} kategoriAda={kategori} onCancel={() => setMode("list")} onSave={simpan} />;
 
   return (
     <div className="fade">
@@ -1811,22 +1889,9 @@ function DoaPage({ doa, setDoa }) {
         <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}><Plus size={18} /> Tambah Doa</button>
       </div>
 
-      {/* filter */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 18 }}>
-        <div style={{ position: "relative", marginBottom: 12 }}>
-          <Search size={17} color={C.muted} style={{ position: "absolute", left: 13, top: 12 }} />
-          <input className="field" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari doa — judul, bacaan latin, arti, atau catatan…" style={{ ...inputStyle, paddingLeft: 40 }} />
-          {q && <button className="btn iconbtn" onClick={() => setQ("")} style={{ position: "absolute", right: 8, top: 8, background: C.bg, padding: 6, borderRadius: 8 }}><X size={14} /></button>}
-        </div>
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-          {kategoriList.map((k) => {
-            const on = kat === k;
-            return <button key={k} className="btn" onClick={() => setKat(k)} style={{ background: on ? C.green : C.bg, color: on ? "#fff" : C.muted, padding: "6px 13px", borderRadius: 99, fontSize: 12.5, border: `1px solid ${on ? C.green : C.border}` }}>{k}</button>;
-          })}
-        </div>
-      </div>
-
-      <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Menampilkan {hasil.length} dari {doa.length} doa.</div>
+      <FilterKategori q={q} setQ={setQ} kat={kat} setKat={setKat} kategori={kategori}
+        onKelola={() => setKelola(true)} jumlah={hasil.length} total={doa.length}
+        placeholder="Cari doa — judul, bacaan latin, arti, atau catatan…" />
 
       {hasil.length === 0 ? (
         <div style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 16, padding: "48px 20px", textAlign: "center", color: C.muted }}>
@@ -1836,7 +1901,7 @@ function DoaPage({ doa, setDoa }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {hasil.map((d) => (
-            <div key={d.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
+            <div key={d.id} className="kartu-pad" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
                 <div>
                   {d.kategori && <Badge bg={C.goldSoft} color={C.goldDeep} icon={BookOpen}>{d.kategori}</Badge>}
@@ -1865,6 +1930,11 @@ function DoaPage({ doa, setDoa }) {
           ))}
         </div>
       )}
+
+      {kelola && (
+        <KelolaKategoriModal kategori={kategori} setKategori={setKategori} items={doa} setItems={setDoa}
+          judul="Kumpulan Doa" onClose={() => { setKelola(false); setKat("Semua"); }} />
+      )}
     </div>
   );
 }
@@ -1883,8 +1953,10 @@ function DoaForm({ initial, kategoriAda, onCancel, onSave }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div>
             <Label>Kategori</Label>
-            <input className="field" list="kat-doa" style={inputStyle} value={f.kategori} onChange={(e) => set("kategori", e.target.value)} placeholder="cth. Thawaf" />
-            <datalist id="kat-doa">{kategoriAda.map((k) => <option key={k} value={k} />)}</datalist>
+            <select className="field" style={inputStyle} value={f.kategori} onChange={(e) => set("kategori", e.target.value)}>
+              <option value="">— tanpa kategori —</option>
+              {kategoriAda.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
           </div>
           <div><Label req>Judul doa</Label><input className="field" style={inputStyle} value={f.judul} onChange={(e) => set("judul", e.target.value)} placeholder="cth. Doa Masuk Masjid" /></div>
           <div style={{ gridColumn: "1 / -1" }}>
@@ -1901,6 +1973,530 @@ function DoaForm({ initial, kategoriAda, onCancel, onSave }) {
           </div>
         </div>
 
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+          <button className="btn" onClick={onCancel} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "11px 20px", borderRadius: 12 }}>Batal</button>
+          <button className="btn" disabled={!canSave} onClick={() => onSave(f)} style={{ background: canSave ? C.green : C.border, color: "#fff", padding: "11px 24px", borderRadius: 12, cursor: canSave ? "pointer" : "not-allowed" }}><Check size={18} /> Simpan</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   PEMASANGAN APLIKASI DI HP (PWA)
+   ============================================================ */
+function usePemasangan() {
+  const [aba, setAba] = useState(null);
+  const [terpasang, setTerpasang] = useState(false);
+
+  useEffect(() => {
+    const tangkap = (e) => { e.preventDefault(); setAba(e); };
+    const sudah = () => { setTerpasang(true); setAba(null); };
+    window.addEventListener("beforeinstallprompt", tangkap);
+    window.addEventListener("appinstalled", sudah);
+    if (window.matchMedia?.("(display-mode: standalone)").matches) setTerpasang(true);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", tangkap);
+      window.removeEventListener("appinstalled", sudah);
+    };
+  }, []);
+
+  const pasang = async () => {
+    if (!aba) return;
+    aba.prompt();
+    try { await aba.userChoice; } catch { /* abaikan */ }
+    setAba(null);
+  };
+
+  return { bisa: !!aba && !terpasang, terpasang, pasang };
+}
+
+function TanpaPeriode({ onBuka }) {
+  return (
+    <div className="fade" style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 18, padding: "48px 22px", textAlign: "center" }}>
+      <LayoutGrid size={34} color={C.border} />
+      <p style={{ margin: "14px 0 4px", fontWeight: 700, fontSize: 15.5 }}>Belum ada periode aktif</p>
+      <p style={{ margin: "0 0 18px", fontSize: 13, color: C.muted }}>Buat periode haji atau umroh terlebih dahulu untuk mulai mengelola data jamaah.</p>
+      <button className="btn" onClick={onBuka} style={{ background: C.green, color: "#fff", padding: "11px 20px", borderRadius: 12 }}>
+        <LayoutGrid size={17} /> Buka Halaman Periode
+      </button>
+    </div>
+  );
+}
+
+/* ============================================================
+   PERIODE PAGE — beranda pemilihan periode haji/umroh
+   ============================================================ */
+function PeriodePage({ periode, setPeriode, idAktif, onPilih, siap }) {
+  const [form, setForm] = useState(null);   // null | {} | data
+  const [hapus, setHapus] = useState(null);
+
+  const urut = [...periode].sort((a, b) => (b.berangkat || "").localeCompare(a.berangkat || ""));
+
+  const simpan = (d) => {
+    if (d.id) setPeriode((l) => l.map((x) => (x.id === d.id ? d : x)));
+    else setPeriode((l) => [...l, { ...d, id: Date.now(), dibuat: new Date().toISOString() }]);
+    setForm(null);
+  };
+
+  if (form !== null) return <PeriodeForm initial={form.id ? form : null} onCancel={() => setForm(null)} onSave={simpan} />;
+
+  return (
+    <div className="fade">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Periode Haji & Umroh</h2>
+          <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Pilih periode untuk mengelola jamaah, agenda, kursi, dan laporannya.</p>
+        </div>
+        <button className="btn" onClick={() => setForm({})} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
+          <Plus size={18} /> Tambah Periode
+        </button>
+      </div>
+
+      <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}44`, borderRadius: 13, padding: "11px 14px", margin: "16px 0 20px", fontSize: 12.5, color: C.goldDeep, display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <BookOpen size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>Data jamaah, kursi bis, agenda, absensi, lokasi, dan laporan <strong>terpisah untuk tiap periode</strong>. Kumpulan Doa dan Hukum Fiqh dipakai bersama oleh semua periode.</span>
+      </div>
+
+      {!siap ? (
+        <div style={{ textAlign: "center", padding: 40, color: C.muted, fontSize: 13 }}>
+          <Loader2 size={20} className="spin" color={C.green} /><div style={{ marginTop: 8 }}>Memuat periode…</div>
+        </div>
+      ) : urut.length === 0 ? (
+        <div style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 16, padding: "48px 20px", textAlign: "center", color: C.muted }}>
+          <LayoutGrid size={32} color={C.border} />
+          <p style={{ marginTop: 12, fontWeight: 600 }}>Belum ada periode.</p>
+          <p style={{ margin: "4px 0 0", fontSize: 13 }}>Tekan "Tambah Periode" untuk memulai.</p>
+        </div>
+      ) : (
+        <div className="kartu-grid">
+          {urut.map((p) => {
+            const aktif = String(p.id) === String(idAktif);
+            const haji = p.jenis === "Haji";
+            return (
+              <div key={p.id} className="card-hover"
+                style={{ background: C.surface, borderRadius: 18, padding: 17, border: `2px solid ${aktif ? C.green : C.border}`, position: "relative" }}>
+                {aktif && (
+                  <span style={{ position: "absolute", top: -10, left: 16, background: C.green, color: "#fff", fontSize: 10.5, fontWeight: 800, padding: "3px 10px", borderRadius: 99, letterSpacing: ".04em" }}>
+                    SEDANG DIBUKA
+                  </span>
+                )}
+                <div style={{ display: "flex", gap: 9, alignItems: "center", marginBottom: 9, marginTop: aktif ? 5 : 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 11, background: haji ? C.goldSoft : C.greenSoft, color: haji ? C.goldDeep : C.green, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Moon size={19} />
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 15.5, fontWeight: 700, lineHeight: 1.3 }}>{p.nama}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{p.jenis} · {p.tahun || "—"}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                  {p.berangkat && <Badge bg={C.greenSoft} color={C.green} icon={CalendarDays}>Berangkat {tglRingkas(p.berangkat)}</Badge>}
+                  {p.pulang && <Badge bg={C.bg} color={C.muted} icon={CalendarDays}>Pulang {tglRingkas(p.pulang)}</Badge>}
+                </div>
+                {p.catatan && <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>{p.catatan}</div>}
+
+                <div style={{ display: "flex", gap: 7, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+                  <button className="btn" onClick={() => onPilih(p.id)}
+                    style={{ flex: 1, justifyContent: "center", background: aktif ? C.greenSoft : C.green, color: aktif ? C.green : "#fff", padding: "9px 12px", borderRadius: 10, fontSize: 13 }}>
+                    {aktif ? <><Check size={15} /> Lanjutkan</> : <><ChevronRight size={15} /> Buka</>}
+                  </button>
+                  <button className="btn iconbtn" onClick={() => setForm(p)} title="Ubah" style={{ background: C.bg, padding: 9, borderRadius: 10 }}><Pencil size={15} /></button>
+                  <button className="btn iconbtn" onClick={() => setHapus(p)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 9, borderRadius: 10 }}><Trash2 size={15} /></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {hapus && (
+        <HapusPeriodeModal p={hapus} onClose={() => setHapus(null)}
+          onSelesai={() => { setPeriode((l) => l.filter((x) => x.id !== hapus.id)); setHapus(null); }} />
+      )}
+    </div>
+  );
+}
+
+function PeriodeForm({ initial, onCancel, onSave }) {
+  const [f, setF] = useState(initial || { nama: "", jenis: "Umroh", tahun: String(new Date().getFullYear()), berangkat: "", pulang: "", catatan: "" });
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const canSave = f.nama.trim().length > 0;
+
+  return (
+    <div className="fade">
+      <button className="btn" onClick={onCancel} style={{ background: "transparent", color: C.green, padding: "6px 0", marginBottom: 14 }}><ArrowLeft size={18} /> Batal</button>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, maxWidth: 620, margin: "0 auto" }}>
+        <h2 className="serif" style={{ margin: "0 0 18px", fontSize: 22, fontWeight: 600 }}>{initial ? "Ubah Periode" : "Tambah Periode"}</h2>
+        <Grid>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Label req>Nama periode</Label>
+            <input className="field" style={inputStyle} value={f.nama} onChange={(e) => set("nama", e.target.value)} placeholder="cth. Umroh Reguler Agustus" />
+          </div>
+          <div>
+            <Label>Jenis</Label>
+            <select className="field" style={inputStyle} value={f.jenis} onChange={(e) => set("jenis", e.target.value)}>
+              <option>Umroh</option><option>Haji</option>
+            </select>
+          </div>
+          <div>
+            <Label>Tahun</Label>
+            <input className="field" style={inputStyle} value={f.tahun} onChange={(e) => set("tahun", e.target.value)} placeholder="cth. 2026" />
+          </div>
+          <div>
+            <Label>Tanggal berangkat</Label>
+            <input className="field" type="date" style={inputStyle} value={f.berangkat} onChange={(e) => set("berangkat", e.target.value)} />
+          </div>
+          <div>
+            <Label>Tanggal pulang</Label>
+            <input className="field" type="date" style={inputStyle} value={f.pulang} onChange={(e) => set("pulang", e.target.value)} />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Label>Catatan</Label>
+            <textarea className="field" rows={2} style={{ ...inputStyle, resize: "vertical" }} value={f.catatan} onChange={(e) => set("catatan", e.target.value)} placeholder="cth. Rombongan A & B, 2 pembimbing" />
+          </div>
+        </Grid>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+          <button className="btn" onClick={onCancel} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "11px 20px", borderRadius: 12 }}>Batal</button>
+          <button className="btn" disabled={!canSave} onClick={() => onSave(f)} style={{ background: canSave ? C.green : C.border, color: "#fff", padding: "11px 24px", borderRadius: 12, cursor: canSave ? "pointer" : "not-allowed" }}><Check size={18} /> Simpan</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HapusPeriodeModal({ p, onClose, onSelesai }) {
+  const [isi, setIsi] = useState(null);
+  const [ketikan, setKetikan] = useState("");
+  const [sibuk, setSibuk] = useState(false);
+
+  useEffect(() => { hitungIsiPeriode(p.id).then(setIsi).catch(() => setIsi({})); }, [p.id]);
+
+  const cocok = ketikan.trim().toLowerCase() === "hapus";
+  const jalankan = async () => {
+    setSibuk(true);
+    try { await hapusPeriodeLengkap(p.id); onSelesai(); }
+    catch (e) { alert("Gagal menghapus: " + pesanGalat(e)); setSibuk(false); }
+  };
+
+  return (
+    <Modal onClose={sibuk ? () => {} : onClose} width={430}>
+      <div style={{ padding: 22 }}>
+        <div style={{ display: "flex", gap: 11, alignItems: "flex-start", marginBottom: 14 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 12, background: C.dangerSoft, color: C.danger, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <AlertOctagon size={22} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.danger }}>Hapus Periode Ini?</h3>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: C.muted }}>Tindakan ini <strong>tidak dapat dibatalkan</strong>.</p>
+          </div>
+        </div>
+
+        <div style={{ background: C.bg, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{p.nama}</div>
+          <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 9 }}>Seluruh data di bawah ini akan ikut terhapus permanen:</div>
+          {isi === null ? (
+            <div style={{ fontSize: 12.5, color: C.muted, display: "flex", gap: 7, alignItems: "center" }}><Loader2 size={14} className="spin" /> Menghitung isi…</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 13 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 7 }}><Users size={14} color={C.danger} /> {isi.jamaah || 0} data jamaah</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 7 }}><CalendarDays size={14} color={C.danger} /> {isi.agenda || 0} agenda</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 7 }}><FileText size={14} color={C.danger} /> {isi.laporan || 0} laporan</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 7 }}><Bus size={14} color={C.danger} /> denah kursi, absensi, dan titik lokasi</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ background: C.greenSoft, borderRadius: 10, padding: "9px 12px", fontSize: 12, color: C.green, marginBottom: 14 }}>
+          Kumpulan Doa dan Hukum Fiqh <strong>tidak</strong> terhapus — keduanya dipakai bersama semua periode.
+        </div>
+
+        <Label>Ketik <strong>HAPUS</strong> untuk menegaskan</Label>
+        <input className="field" style={{ ...inputStyle, marginBottom: 16 }} value={ketikan} onChange={(e) => setKetikan(e.target.value)} placeholder="HAPUS" autoFocus />
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button className="btn" onClick={onClose} disabled={sibuk} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "10px 18px", borderRadius: 11 }}>Batal</button>
+          <button className="btn" onClick={jalankan} disabled={!cocok || sibuk}
+            style={{ background: cocok && !sibuk ? C.danger : C.border, color: "#fff", padding: "10px 20px", borderRadius: 11, cursor: cocok && !sibuk ? "pointer" : "not-allowed" }}>
+            {sibuk ? <Loader2 size={16} className="spin" /> : <Trash2 size={16} />} {sibuk ? "Menghapus…" : "Hapus Permanen"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ============================================================
+   PENGELOLA KATEGORI (dipakai halaman Doa & Fiqh)
+   ============================================================ */
+function KelolaKategoriModal({ kategori, setKategori, items, setItems, judul, onClose }) {
+  const [baru, setBaru] = useState("");
+  const [ubahIdx, setUbahIdx] = useState(null);
+  const [ubahTeks, setUbahTeks] = useState("");
+
+  const jumlahDipakai = (nama) => items.filter((x) => x.kategori === nama).length;
+
+  const tambah = () => {
+    const n = baru.trim();
+    if (!n) return;
+    if (kategori.some((k) => k.toLowerCase() === n.toLowerCase())) return alert("Kategori itu sudah ada.");
+    setKategori([...kategori, n]);
+    setBaru("");
+  };
+
+  const simpanUbah = (i) => {
+    const n = ubahTeks.trim();
+    if (!n) return;
+    const lama = kategori[i];
+    if (n === lama) { setUbahIdx(null); return; }
+    if (kategori.some((k, j) => j !== i && k.toLowerCase() === n.toLowerCase())) return alert("Kategori itu sudah ada.");
+    setKategori(kategori.map((k, j) => (j === i ? n : k)));
+    // Ikut memperbarui semua isi yang memakai kategori lama
+    setItems((l) => l.map((x) => (x.kategori === lama ? { ...x, kategori: n } : x)));
+    setUbahIdx(null);
+  };
+
+  const hapus = (i) => {
+    const nama = kategori[i];
+    const dipakai = jumlahDipakai(nama);
+    const pesan = dipakai
+      ? `Hapus kategori "${nama}"?\n\n${dipakai} isi yang memakai kategori ini tidak ikut terhapus, tetapi kategorinya akan dikosongkan.`
+      : `Hapus kategori "${nama}"?`;
+    if (!window.confirm(pesan)) return;
+    setKategori(kategori.filter((_, j) => j !== i));
+    if (dipakai) setItems((l) => l.map((x) => (x.kategori === nama ? { ...x, kategori: "" } : x)));
+  };
+
+  const geser = (i, arah) => {
+    const j = i + arah;
+    if (j < 0 || j >= kategori.length) return;
+    const salin = [...kategori];
+    [salin[i], salin[j]] = [salin[j], salin[i]];
+    setKategori(salin);
+  };
+
+  return (
+    <Modal onClose={onClose} width={430}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}><Tags size={18} color={C.green} /> Kelola Kategori</h3>
+          <button className="btn iconbtn" onClick={onClose} style={{ background: C.bg, padding: 7, borderRadius: 9 }}><X size={16} /></button>
+        </div>
+        <p style={{ margin: "0 0 16px", fontSize: 12.5, color: C.muted }}>Kategori untuk {judul}. Mengubah nama kategori otomatis memperbarui semua isinya.</p>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <input className="field" style={{ ...inputStyle, flex: 1 }} value={baru} onChange={(e) => setBaru(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && tambah()} placeholder="Nama kategori baru…" />
+          <button className="btn" onClick={tambah} style={{ background: C.green, color: "#fff", padding: "0 15px", borderRadius: 11 }}><Plus size={17} /></button>
+        </div>
+
+        <div style={{ maxHeight: 320, overflow: "auto" }} className="kbih-scroll">
+          {kategori.length === 0 ? (
+            <div style={{ fontSize: 13, color: C.muted, textAlign: "center", padding: 20 }}>Belum ada kategori.</div>
+          ) : kategori.map((k, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 10px", border: `1px solid ${C.border}`, borderRadius: 11, marginBottom: 8, background: "#fff" }}>
+              {ubahIdx === i ? (
+                <>
+                  <input className="field" autoFocus style={{ ...inputStyle, flex: 1, padding: "7px 10px" }} value={ubahTeks}
+                    onChange={(e) => setUbahTeks(e.target.value)} onKeyDown={(e) => e.key === "Enter" && simpanUbah(i)} />
+                  <button className="btn" onClick={() => simpanUbah(i)} style={{ background: C.green, color: "#fff", padding: "7px 10px", borderRadius: 9 }}><Check size={14} /></button>
+                  <button className="btn" onClick={() => setUbahIdx(null)} style={{ background: C.bg, color: C.muted, padding: "7px 10px", borderRadius: 9 }}><X size={14} /></button>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <button className="btn iconbtn" onClick={() => geser(i, -1)} disabled={i === 0} title="Naik"
+                      style={{ background: "transparent", color: i === 0 ? C.border : C.muted, padding: 1, borderRadius: 5 }}><ChevronRight size={13} style={{ transform: "rotate(-90deg)" }} /></button>
+                    <button className="btn iconbtn" onClick={() => geser(i, 1)} disabled={i === kategori.length - 1} title="Turun"
+                      style={{ background: "transparent", color: i === kategori.length - 1 ? C.border : C.muted, padding: 1, borderRadius: 5 }}><ChevronRight size={13} style={{ transform: "rotate(90deg)" }} /></button>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700 }}>{k}</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>{jumlahDipakai(k)} isi</div>
+                  </div>
+                  <button className="btn iconbtn" onClick={() => { setUbahIdx(i); setUbahTeks(k); }} title="Ubah nama"
+                    style={{ background: C.bg, padding: 7, borderRadius: 9 }}><Pencil size={14} /></button>
+                  <button className="btn iconbtn" onClick={() => hapus(i)} title="Hapus"
+                    style={{ background: C.dangerSoft, color: C.danger, padding: 7, borderRadius: 9 }}><Trash2 size={14} /></button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <button className="btn" onClick={onClose} style={{ background: C.green, color: "#fff", padding: "10px 20px", borderRadius: 11 }}>Selesai</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* Baris filter kategori + pencarian, dipakai Doa & Fiqh */
+function FilterKategori({ q, setQ, kat, setKat, kategori, onKelola, placeholder, jumlah, total }) {
+  return (
+    <>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 14 }}>
+        <div style={{ position: "relative", marginBottom: 12 }}>
+          <Search size={17} color={C.muted} style={{ position: "absolute", left: 13, top: 12 }} />
+          <input className="field" value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} style={{ ...inputStyle, paddingLeft: 40 }} />
+          {q && <button className="btn iconbtn" onClick={() => setQ("")} style={{ position: "absolute", right: 8, top: 8, background: C.bg, padding: 6, borderRadius: 8 }}><X size={14} /></button>}
+        </div>
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" }}>
+          {["Semua", ...kategori].map((k) => {
+            const on = kat === k;
+            return <button key={k} className="btn" onClick={() => setKat(k)}
+              style={{ background: on ? C.green : C.bg, color: on ? "#fff" : C.muted, padding: "6px 13px", borderRadius: 99, fontSize: 12.5, border: `1px solid ${on ? C.green : C.border}` }}>{k}</button>;
+          })}
+          <button className="btn" onClick={onKelola} title="Kelola kategori"
+            style={{ background: "#fff", color: C.green, border: `1px dashed ${C.green}66`, padding: "6px 12px", borderRadius: 99, fontSize: 12.5 }}>
+            <Tags size={14} /> Kelola
+          </button>
+        </div>
+      </div>
+      <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Menampilkan {jumlah} dari {total}.</div>
+    </>
+  );
+}
+
+/* ============================================================
+   FIQH PAGE — kumpulan hukum fiqh manasik
+   ============================================================ */
+function FiqhPage({ fiqh, setFiqh, kategori, setKategori }) {
+  const [mode, setMode] = useState("list");
+  const [editing, setEditing] = useState(null);
+  const [q, setQ] = useState("");
+  const [kat, setKat] = useState("Semua");
+  const [kelola, setKelola] = useState(false);
+
+  const hasil = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return fiqh.filter((d) => {
+      if (kat !== "Semua" && d.kategori !== kat) return false;
+      if (!s) return true;
+      return [d.judul, d.kategori, d.isi, d.dalil, d.rujukan, d.catatan].join(" ").toLowerCase().includes(s);
+    });
+  }, [fiqh, q, kat]);
+
+  const simpan = (d) => {
+    if (d.id) setFiqh((l) => l.map((x) => (x.id === d.id ? d : x)));
+    else setFiqh((l) => [...l, { ...d, id: Date.now() }]);
+    setMode("list");
+  };
+  const hapus = (id) => { if (window.confirm("Hapus catatan fiqh ini?")) setFiqh((l) => l.filter((x) => x.id !== id)); };
+
+  if (mode === "form") return <FiqhForm initial={editing} kategori={kategori} onCancel={() => setMode("list")} onSave={simpan} />;
+
+  return (
+    <div className="fade">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Hukum Fiqh</h2>
+          <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Rujukan hukum manasik untuk menjawab pertanyaan jamaah di lapangan.</p>
+        </div>
+        <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
+          <Plus size={18} /> Tambah Catatan
+        </button>
+      </div>
+
+      <FilterKategori q={q} setQ={setQ} kat={kat} setKat={setKat} kategori={kategori}
+        onKelola={() => setKelola(true)} jumlah={hasil.length} total={fiqh.length}
+        placeholder="Cari hukum — judul, uraian, dalil, atau rujukan…" />
+
+      {hasil.length === 0 ? (
+        <div style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 16, padding: "48px 20px", textAlign: "center", color: C.muted }}>
+          <Scale size={32} color={C.border} />
+          <p style={{ marginTop: 12, fontWeight: 600 }}>Tidak ada catatan yang cocok.</p>
+          <p style={{ margin: "4px 0 0", fontSize: 13 }}>Coba kata kunci lain atau ubah kategori.</p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {hasil.map((d) => (
+            <div key={d.id} className="kartu-pad" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+                <div style={{ minWidth: 0 }}>
+                  {d.kategori && <Badge bg={C.goldSoft} color={C.goldDeep} icon={Scale}>{d.kategori}</Badge>}
+                  <div style={{ fontSize: 16.5, fontWeight: 700, marginTop: 7 }}>{d.judul}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6, height: "fit-content" }}>
+                  <button className="btn iconbtn" onClick={() => { setEditing(d); setMode("form"); }} title="Ubah" style={{ background: C.bg, padding: 8, borderRadius: 9 }}><Pencil size={15} /></button>
+                  <button className="btn iconbtn" onClick={() => hapus(d.id)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 8, borderRadius: 9 }}><Trash2 size={15} /></button>
+                </div>
+              </div>
+
+              {d.isi && <div style={{ fontSize: 14.5, lineHeight: 1.7, color: C.ink, whiteSpace: "pre-wrap" }}>{d.isi}</div>}
+
+              {d.dalil && (
+                <div style={{ background: C.greenSoft, borderRadius: 11, padding: "11px 13px", marginTop: 12, fontSize: 13.5, color: C.green, lineHeight: 1.6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", marginBottom: 4, opacity: .8 }}>Dalil</div>
+                  {d.dalil}
+                </div>
+              )}
+              {d.rujukan && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 9, display: "flex", gap: 6, alignItems: "center" }}><BookOpen size={14} /> {d.rujukan}</div>}
+              {d.catatan && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, display: "flex", gap: 6, alignItems: "flex-start" }}><StickyNote size={14} style={{ marginTop: 2, flexShrink: 0 }} /> {d.catatan}</div>}
+              {d.berkas && (
+                <button className="btn" onClick={() => bukaBerkas(d.berkas)} style={{ marginTop: 12, background: C.dangerSoft, color: C.danger, padding: "8px 13px", borderRadius: 10, fontSize: 12.5 }}>
+                  <Paperclip size={14} /> {d.berkas.nama}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {kelola && (
+        <KelolaKategoriModal kategori={kategori} setKategori={setKategori} items={fiqh} setItems={setFiqh}
+          judul="Hukum Fiqh" onClose={() => { setKelola(false); setKat("Semua"); }} />
+      )}
+    </div>
+  );
+}
+
+function FiqhForm({ initial, kategori, onCancel, onSave }) {
+  const [f, setF] = useState(initial || { kategori: "", judul: "", isi: "", dalil: "", rujukan: "", catatan: "", berkas: null });
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const canSave = f.judul.trim().length > 0;
+
+  return (
+    <div className="fade">
+      <button className="btn" onClick={onCancel} style={{ background: "transparent", color: C.green, padding: "6px 0", marginBottom: 14 }}><ArrowLeft size={18} /> Batal</button>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, maxWidth: 720, margin: "0 auto" }}>
+        <h2 className="serif" style={{ margin: "0 0 18px", fontSize: 22, fontWeight: 600 }}>{initial ? "Ubah Catatan Fiqh" : "Tambah Catatan Fiqh"}</h2>
+        <Grid>
+          <div>
+            <Label>Kategori</Label>
+            <select className="field" style={inputStyle} value={f.kategori} onChange={(e) => set("kategori", e.target.value)}>
+              <option value="">— tanpa kategori —</option>
+              {kategori.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label req>Judul</Label>
+            <input className="field" style={inputStyle} value={f.judul} onChange={(e) => set("judul", e.target.value)} placeholder="cth. Rukun Umroh" />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Label>Uraian hukum</Label>
+            <textarea className="field" rows={6} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }} value={f.isi} onChange={(e) => set("isi", e.target.value)} placeholder="Tulis penjelasan hukumnya di sini…" />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Label>Dalil</Label>
+            <textarea className="field" rows={3} style={{ ...inputStyle, resize: "vertical" }} value={f.dalil} onChange={(e) => set("dalil", e.target.value)} placeholder="Ayat, hadis, atau kaidah yang menjadi dasar…" />
+          </div>
+          <div>
+            <Label>Rujukan kitab</Label>
+            <input className="field" style={inputStyle} value={f.rujukan} onChange={(e) => set("rujukan", e.target.value)} placeholder="cth. Fikih Manasik — mazhab Syafi'i" />
+          </div>
+          <div>
+            <Label>Catatan pembimbing</Label>
+            <input className="field" style={inputStyle} value={f.catatan} onChange={(e) => set("catatan", e.target.value)} placeholder="cth. sering ditanyakan jamaah" />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Label>Lampiran (tautan, opsional)</Label>
+            <TautanBerkas nilai={f.berkas} onChange={(v) => set("berkas", v)} label="Tambah tautan rujukan"
+              petunjuk="Bisa tautan kitab PDF, artikel, atau rekaman kajian dari Google Drive." />
+          </div>
+        </Grid>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
           <button className="btn" onClick={onCancel} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "11px 20px", borderRadius: 12 }}>Batal</button>
           <button className="btn" disabled={!canSave} onClick={() => onSave(f)} style={{ background: canSave ? C.green : C.border, color: "#fff", padding: "11px 24px", borderRadius: 12, cursor: canSave ? "pointer" : "not-allowed" }}><Check size={18} /> Simpan</button>

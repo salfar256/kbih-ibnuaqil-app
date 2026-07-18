@@ -2,7 +2,7 @@
 // Lapisan penghubung aplikasi <-> Firebase (tanpa Cloud Storage)
 // ============================================================
 import { useState, useEffect, useRef } from "react";
-import { doc, collection, onSnapshot, setDoc, deleteDoc } from "firebase/firestore";
+import { doc, collection, onSnapshot, setDoc, deleteDoc, getDocs, writeBatch } from "firebase/firestore";
 import {
   onAuthStateChanged, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, signOut, sendPasswordResetEmail,
@@ -50,21 +50,30 @@ const sama = (a, b) => JSON.stringify(a) === JSON.stringify(b);
    foto yang menempel tidak membebani satu dokumen besar.
    Pemakaiannya sama persis seperti useState biasa.
 ------------------------------------------------------- */
-export function useKoleksiTersinkron(nama, awal = []) {
+// jalur bisa berupa "doa" atau ["periode", id, "jamaah"]
+const keJalur = (j) => (Array.isArray(j) ? j : [j]);
+
+export function useKoleksiTersinkron(jalur, awal = []) {
+  const bagian = keJalur(jalur);
+  const kunci = bagian.join("/");
   const [items, setItems] = useState(awal);
   const [siap, setSiap] = useState(false);
   const terakhir = useRef(null);        // cerminan data di server
   const sudahIsiAwal = useRef(false);
 
   useEffect(() => {
-    const kol = collection(db, nama);
+    terakhir.current = null;
+    sudahIsiAwal.current = false;
+    setSiap(false);
+    setItems(awal);
+    const kol = collection(db, ...bagian);
     const unsub = onSnapshot(
       kol,
       (snap) => {
         if (snap.empty && !sudahIsiAwal.current && awal.length) {
           // Koleksi masih kosong — isi dengan data contoh sekali saja
           sudahIsiAwal.current = true;
-          awal.forEach((it) => setDoc(doc(db, nama, String(it.id)), bersihkan(it)).catch(() => {}));
+          awal.forEach((it) => setDoc(doc(db, ...bagian, String(it.id)), bersihkan(it)).catch(() => {}));
           return;
         }
         sudahIsiAwal.current = true;
@@ -73,10 +82,10 @@ export function useKoleksiTersinkron(nama, awal = []) {
         setItems(data);
         setSiap(true);
       },
-      (err) => { console.error("Gagal membaca", nama, err); setSiap(true); }
+      (err) => { console.error("Gagal membaca", kunci, err); setSiap(true); }
     );
     return unsub;
-  }, [nama]);
+  }, [kunci]);
 
   // Tulis hanya bagian yang berubah
   useEffect(() => {
@@ -89,17 +98,17 @@ export function useKoleksiTersinkron(nama, awal = []) {
       if (it?.id == null) return;
       const lama = sebelum.find((p) => String(p.id) === String(it.id));
       if (!lama || !sama(lama, it)) {
-        setDoc(doc(db, nama, String(it.id)), bersihkan(it))
-          .catch((e) => console.error("Gagal menyimpan", nama, e));
+        setDoc(doc(db, ...bagian, String(it.id)), bersihkan(it))
+          .catch((e) => console.error("Gagal menyimpan", kunci, e));
       }
     });
     sebelum.forEach((p) => {
       if (!idSekarang.has(String(p.id))) {
-        deleteDoc(doc(db, nama, String(p.id))).catch(() => {});
+        deleteDoc(doc(db, ...bagian, String(p.id))).catch(() => {});
       }
     });
     terakhir.current = sekarang;
-  }, [items, nama]);
+  }, [items, kunci]);
 
   return [items, setItems, siap];
 }
@@ -107,14 +116,19 @@ export function useKoleksiTersinkron(nama, awal = []) {
 /* ---------------- Sinkronisasi DOKUMEN TUNGGAL ----------------
    Untuk data berbentuk objek kecil (denah kursi, absensi).
 --------------------------------------------------------------- */
-export function useDataTersinkron(kunci, awal) {
+export function useDataTersinkron(jalur, awal) {
+  const bagian = Array.isArray(jalur) ? jalur : ["data", jalur];
+  const kunci = bagian.join("/");
   const [nilai, setNilai] = useState(awal);
   const [siap, setSiap] = useState(false);
   const abaikan = useRef(false);
   const sudahSiap = useRef(false);
 
   useEffect(() => {
-    const acuan = doc(db, "data", kunci);
+    sudahSiap.current = false;
+    setSiap(false);
+    setNilai(awal);
+    const acuan = doc(db, ...bagian);
     const unsub = onSnapshot(
       acuan,
       (snap) => {
@@ -131,7 +145,7 @@ export function useDataTersinkron(kunci, awal) {
     if (!sudahSiap.current) return;
     if (abaikan.current) { abaikan.current = false; return; }
     const t = setTimeout(() => {
-      setDoc(doc(db, "data", kunci), { value: bersihkan(nilai) })
+      setDoc(doc(db, ...bagian), { value: bersihkan(nilai) })
         .catch((e) => console.error("Gagal menyimpan", kunci, e));
     }, 500);
     return () => clearTimeout(t);
@@ -195,4 +209,35 @@ export function rapikanTautan(url) {
   if (cocok) return `https://drive.google.com/file/d/${cocok[1]}/view`;
   if (!/^https?:\/\//i.test(u)) return `https://${u}`;
   return u;
+}
+
+
+/* ---------- hapus periode beserta seluruh isinya ---------- */
+const SUB_PERIODE = ["jamaah", "agenda", "laporan", "titikKumpul", "titikPenting", "tersesat", "data"];
+
+export async function hapusPeriodeLengkap(idPeriode) {
+  for (const sub of SUB_PERIODE) {
+    try {
+      const isi = await getDocs(collection(db, "periode", String(idPeriode), sub));
+      if (isi.empty) continue;
+      const batch = writeBatch(db);
+      isi.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    } catch (e) {
+      console.error("Gagal menghapus", sub, e);
+    }
+  }
+  await deleteDoc(doc(db, "periode", String(idPeriode)));
+}
+
+/* Menghitung isi sebuah periode, untuk ditampilkan sebelum dihapus */
+export async function hitungIsiPeriode(idPeriode) {
+  const hasil = {};
+  for (const sub of ["jamaah", "agenda", "laporan"]) {
+    try {
+      const isi = await getDocs(collection(db, "periode", String(idPeriode), sub));
+      hasil[sub] = isi.size;
+    } catch { hasil[sub] = 0; }
+  }
+  return hasil;
 }

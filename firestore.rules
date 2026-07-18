@@ -10,15 +10,28 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    match /jamaah/{id}       { allow read, write: if sudahLogin(); }
-    match /agenda/{id}       { allow read, write: if sudahLogin(); }
-    match /doa/{id}          { allow read, write: if sudahLogin(); }
-    match /laporan/{id}      { allow read, write: if sudahLogin(); }
-    match /titikKumpul/{id}  { allow read, write: if sudahLogin(); }
-    match /titikPenting/{id} { allow read, write: if sudahLogin(); }
-    match /tersesat/{id}     { allow read, write: if sudahLogin(); }
-    match /data/{id}         { allow read, write: if sudahLogin(); }
-    // data/telegram menyimpan token bot — hanya untuk pembimbing yang login
+    // --- Data per periode haji/umroh ---
+    // periode/{id}                      → keterangan periode
+    // periode/{id}/jamaah/{id}          → data jamaah
+    // periode/{id}/agenda/{id}          → jadwal kegiatan
+    // periode/{id}/laporan/{id}         → riwayat laporan
+    // periode/{id}/titikKumpul/{id}     → titik kumpul
+    // periode/{id}/titikPenting/{id}    → lokasi penting
+    // periode/{id}/tersesat/{id}        → jamaah tersesat
+    // periode/{id}/data/{kursi|absensi} → denah kursi & absensi
+    match /periode/{idPeriode} {
+      allow read, write: if sudahLogin();
+      match /{koleksi}/{idIsi} {
+        allow read, write: if sudahLogin();
+      }
+    }
+
+    // --- Data bersama semua periode ---
+    match /doa/{id}   { allow read, write: if sudahLogin(); }
+    match /fiqh/{id}  { allow read, write: if sudahLogin(); }
+
+    // data/kategoriDoa, data/kategoriFiqh, data/telegram
+    match /data/{id}  { allow read, write: if sudahLogin(); }
 
     // Selain yang disebut di atas: ditolak
     match /{document=**} { allow read, write: if false; }

@@ -54,14 +54,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    match /jamaah/{id}       { allow read, write: if sudahLogin(); }
-    match /agenda/{id}       { allow read, write: if sudahLogin(); }
-    match /doa/{id}          { allow read, write: if sudahLogin(); }
-    match /laporan/{id}      { allow read, write: if sudahLogin(); }
-    match /titikKumpul/{id}  { allow read, write: if sudahLogin(); }
-    match /titikPenting/{id} { allow read, write: if sudahLogin(); }
-    match /tersesat/{id}     { allow read, write: if sudahLogin(); }
-    match /data/{id}         { allow read, write: if sudahLogin(); }
+    match /periode/{idPeriode} {
+      allow read, write: if sudahLogin();
+      match /{koleksi}/{idIsi} {
+        allow read, write: if sudahLogin();
+      }
+    }
+
+    match /doa/{id}   { allow read, write: if sudahLogin(); }
+    match /fiqh/{id}  { allow read, write: if sudahLogin(); }
+    match /data/{id}  { allow read, write: if sudahLogin(); }
 
     match /{document=**} { allow read, write: if false; }
   }
@@ -218,20 +220,58 @@ Untuk satu KBIH, semuanya tetap **gratis**.
 
 ## Struktur Data di Firestore
 
+**Per periode** (terpisah untuk tiap keberangkatan):
 ```
-jamaah/         → data tiap jamaah (termasuk foto)
-agenda/         → jadwal kegiatan
-doa/            → kumpulan doa
-laporan/        → riwayat laporan
-titikKumpul/    → titik kumpul
-titikPenting/   → lokasi penting
-tersesat/       → jamaah yang ditandai tersesat
-data/kursi      → denah kursi bis
-data/absensi    → catatan kehadiran
-data/telegram   → pengaturan bot
+periode/{id}                    → keterangan periode
+periode/{id}/jamaah/            → data jamaah (termasuk foto)
+periode/{id}/agenda/            → jadwal kegiatan
+periode/{id}/laporan/           → riwayat laporan
+periode/{id}/titikKumpul/       → titik kumpul
+periode/{id}/titikPenting/      → lokasi penting
+periode/{id}/tersesat/          → jamaah yang ditandai tersesat
+periode/{id}/data/kursi         → denah kursi bis
+periode/{id}/data/absensi       → catatan kehadiran
 ```
 
-Bisa dilihat & diedit langsung dari Firebase Console → Firestore Database.
+**Dipakai bersama semua periode:**
+```
+doa/                → kumpulan doa
+fiqh/               → hukum fiqh manasik
+data/kategoriDoa    → daftar kategori doa
+data/kategoriFiqh   → daftar kategori fiqh
+data/telegram       → pengaturan bot
+```
+
+---
+
+## Memasang Aplikasi di HP
+
+Aplikasi ini bisa dipasang seperti aplikasi biasa, tanpa lewat Play Store.
+
+**Android (Chrome):**
+1. Buka alamat aplikasi
+2. Muncul tombol **"Pasang Aplikasi"** di bagian atas — tekan itu
+3. Atau lewat menu tiga titik → **Tambahkan ke layar utama**
+
+**iPhone (Safari):**
+1. Buka alamat aplikasi **di Safari** (bukan Chrome)
+2. Tekan tombol **Bagikan** (kotak dengan panah ke atas)
+3. Pilih **Tambahkan ke Layar Utama**
+
+Setelah terpasang, ikon KBIH Ibnu Aqil muncul di layar HP dan aplikasi terbuka layar penuh tanpa alamat browser.
+
+---
+
+## Periode Haji & Umroh
+
+Halaman **Periode** adalah beranda aplikasi. Tiap keberangkatan dibuat sebagai periode tersendiri.
+
+**Yang terpisah per periode:** jamaah, kursi bis, agenda, absensi, lokasi, laporan.
+**Yang dipakai bersama:** kumpulan doa dan hukum fiqh.
+
+Untuk berpindah periode, tekan tombol **Ganti** pada pita hijau di bawah menu.
+
+**Menghapus periode** akan menghapus seluruh data di dalamnya secara permanen. Karena itu aplikasi menampilkan rincian isinya dulu dan meminta Anda mengetik kata **HAPUS** sebagai penegasan.
 
 ---
 
