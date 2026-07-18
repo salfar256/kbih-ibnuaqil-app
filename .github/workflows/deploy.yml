@@ -23,10 +23,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Pasang kebutuhan
-        run: npm ci
+        run: npm install
 
       - name: Bangun aplikasi
         run: npm run build
