@@ -3,6 +3,7 @@
 // ============================================================
 import { useState, useEffect, useRef } from "react";
 import { doc, collection, onSnapshot, setDoc, deleteDoc, getDocs, writeBatch } from "firebase/firestore";
+import { initializeApp, getApp, deleteApp } from "firebase/app";
 import {
   onAuthStateChanged, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, signOut, sendPasswordResetEmail,
@@ -54,8 +55,8 @@ const sama = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const keJalur = (j) => (Array.isArray(j) ? j : [j]);
 
 export function useKoleksiTersinkron(jalur, awal = []) {
-  const bagian = keJalur(jalur);
-  const kunci = bagian.join("/");
+  const bagian = jalur ? keJalur(jalur) : null;   // null = tidak berlangganan
+  const kunci = bagian ? bagian.join("/") : "";
   const [items, setItems] = useState(awal);
   const [siap, setSiap] = useState(false);
   const terakhir = useRef(null);        // cerminan data di server
@@ -64,6 +65,7 @@ export function useKoleksiTersinkron(jalur, awal = []) {
   useEffect(() => {
     terakhir.current = null;
     sudahIsiAwal.current = false;
+    if (!kunci) { setItems([]); setSiap(true); return; }
     setSiap(false);
     setItems(awal);
     const kol = collection(db, ...bagian);
@@ -89,7 +91,7 @@ export function useKoleksiTersinkron(jalur, awal = []) {
 
   // Tulis hanya bagian yang berubah
   useEffect(() => {
-    if (terakhir.current === null) return;
+    if (!kunci || terakhir.current === null) return;
     const sebelum = terakhir.current;
     const sekarang = items || [];
     const idSekarang = new Set(sekarang.map((x) => String(x.id)));
@@ -117,8 +119,8 @@ export function useKoleksiTersinkron(jalur, awal = []) {
    Untuk data berbentuk objek kecil (denah kursi, absensi).
 --------------------------------------------------------------- */
 export function useDataTersinkron(jalur, awal) {
-  const bagian = Array.isArray(jalur) ? jalur : ["data", jalur];
-  const kunci = bagian.join("/");
+  const bagian = jalur ? (Array.isArray(jalur) ? jalur : ["data", jalur]) : null;
+  const kunci = bagian ? bagian.join("/") : "";
   const [nilai, setNilai] = useState(awal);
   const [siap, setSiap] = useState(false);
   const abaikan = useRef(false);
@@ -126,6 +128,7 @@ export function useDataTersinkron(jalur, awal) {
 
   useEffect(() => {
     sudahSiap.current = false;
+    if (!kunci) { setNilai(awal); setSiap(true); return; }
     setSiap(false);
     setNilai(awal);
     const acuan = doc(db, ...bagian);
@@ -142,7 +145,7 @@ export function useDataTersinkron(jalur, awal) {
   }, [kunci]);
 
   useEffect(() => {
-    if (!sudahSiap.current) return;
+    if (!kunci || !sudahSiap.current) return;
     if (abaikan.current) { abaikan.current = false; return; }
     const t = setTimeout(() => {
       setDoc(doc(db, ...bagian), { value: bersihkan(nilai) })
@@ -240,4 +243,125 @@ export async function hitungIsiPeriode(idPeriode) {
     } catch { hasil[sub] = 0; }
   }
   return hasil;
+}
+
+
+/* ---------- pengelolaan akun ----------
+   Catatan penting: Firebase tidak mengizinkan aplikasi web
+   menghapus akun orang lain — itu hanya bisa lewat server
+   khusus atau Firebase Console. Karena itu akun yang
+   bermasalah dinonaktifkan (diblokir aksesnya), bukan dihapus.
+--------------------------------------- */
+
+// Membuat akun baru TANPA membuat pembimbing yang sedang login ikut keluar.
+// Caranya memakai sambungan Firebase kedua yang langsung ditutup lagi.
+export async function buatAkunBaru(email, sandi) {
+  const konfig = getApp().options;
+  const namaApp = "pembuat-akun-" + Date.now();
+  const app2 = initializeApp(konfig, namaApp);
+  const auth2 = getAuth(app2);
+  try {
+    const kredensial = await createUserWithEmailAndPassword(auth2, email.trim(), sandi);
+    const uid = kredensial.user.uid;
+    await signOut(auth2);
+    return { uid, email: email.trim() };
+  } finally {
+    try { await deleteApp(app2); } catch { /* abaikan */ }
+  }
+}
+
+// Memantau data akun milik pengguna yang sedang login
+export function useAkunSaya(uid) {
+  const [akun, setAkun] = useState(undefined); // undefined = memuat, null = belum terdaftar
+  useEffect(() => {
+    if (!uid) { setAkun(null); return; }
+    const unsub = onSnapshot(
+      doc(db, "akun", uid),
+      (snap) => setAkun(snap.exists() ? snap.data() : null),
+      () => setAkun(null)
+    );
+    return unsub;
+  }, [uid]);
+  return akun;
+}
+
+
+/* ---------- satu dokumen apa adanya (tanpa pembungkus value) ----------
+   Dipakai akun jamaah untuk membaca & menyunting datanya sendiri.
+--------------------------------------------------------------------- */
+export function useDokumenMentah(jalur) {
+  const bagian = jalur ? (Array.isArray(jalur) ? jalur : [jalur]) : null;
+  const kunci = bagian ? bagian.join("/") : "";
+  const [data, setData] = useState(null);
+  const [siap, setSiap] = useState(false);
+
+  useEffect(() => {
+    if (!kunci) { setData(null); setSiap(true); return; }
+    setSiap(false);
+    const unsub = onSnapshot(
+      doc(db, ...bagian),
+      (snap) => { setData(snap.exists() ? snap.data() : null); setSiap(true); },
+      (e) => { console.error("Gagal membaca", kunci, e); setData(null); setSiap(true); }
+    );
+    return unsub;
+  }, [kunci]);
+
+  const simpan = async (baru) => {
+    if (!kunci) return;
+    await setDoc(doc(db, ...bagian), bersihkan(baru), { merge: true });
+  };
+
+  return [data, simpan, siap];
+}
+
+/* ---------- menambah satu dokumen baru ----------
+   Dipakai jamaah untuk mengirim catatan ke riwayat laporan,
+   walau ia tidak boleh membaca laporan pembimbing lain.
+------------------------------------------------- */
+export async function tambahDokumen(jalur, data) {
+  const bagian = Array.isArray(jalur) ? jalur : [jalur];
+  const id = String(data.id || Date.now());
+  await setDoc(doc(db, ...bagian, id), bersihkan({ ...data, id }));
+  return id;
+}
+
+/* ---------- cerminan ringkas daftar jamaah ----------
+   Berisi nama, foto, telepon, dan rombongan saja — tanpa data
+   kesehatan. Inilah yang boleh dibaca akun jamaah, sehingga
+   riwayat penyakit dan catatan harian tetap tertutup.
+---------------------------------------------------- */
+export async function sinkronDirektori(idPeriode, daftar) {
+  if (!idPeriode || idPeriode === "kosong") return;
+  const jalur = ["periode", String(idPeriode), "direktori"];
+  try {
+    const adaSekarang = await getDocs(collection(db, ...jalur));
+    const lama = {};
+    adaSekarang.docs.forEach((d) => { lama[d.id] = d.data(); });
+
+    const batch = writeBatch(db);
+    let adaUbahan = false;
+
+    daftar.forEach((j) => {
+      const ringkas = {
+        id: String(j.id),
+        nama: j.nama || "",
+        foto: j.foto || null,
+        telepon: j.telepon || "",
+        rombongan: j.rombongan || "",
+      };
+      if (!sama(lama[String(j.id)], ringkas)) {
+        batch.set(doc(db, ...jalur, String(j.id)), ringkas);
+        adaUbahan = true;
+      }
+    });
+
+    const idBaru = new Set(daftar.map((j) => String(j.id)));
+    Object.keys(lama).forEach((id) => {
+      if (!idBaru.has(id)) { batch.delete(doc(db, ...jalur, id)); adaUbahan = true; }
+    });
+
+    if (adaUbahan) await batch.commit();
+  } catch (e) {
+    console.error("Gagal menyelaraskan direktori:", e);
+  }
 }

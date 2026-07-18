@@ -2,36 +2,85 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Hanya pembimbing yang sudah login yang boleh membaca & menulis.
-    // Data ini berisi informasi pribadi dan kesehatan jamaah,
-    // jadi jangan longgarkan aturan di bawah ini.
+    // ============================================================
+    // Aturan keamanan KBIH Ibnu Aqil
+    //
+    // Data ini berisi informasi pribadi dan kesehatan jamaah.
+    // Pembatasan di aplikasi saja tidak cukup — aturan di bawah
+    // inilah yang benar-benar menegakkannya di sisi server.
+    // ============================================================
 
-    function sudahLogin() {
-      return request.auth != null;
+    function login() { return request.auth != null; }
+
+    function acuanAkun() {
+      return /databases/$(database)/documents/akun/$(request.auth.uid);
+    }
+    function punyaCatatan() { return login() && exists(acuanAkun()); }
+    function dataAkun()     { return get(acuanAkun()).data; }
+
+    // Akun tanpa catatan dianggap sah — supaya akun lama tetap berfungsi.
+    // Akun yang dinonaktifkan lewat halaman Pengaturan tertolak di sini.
+    function aktif() { return login() && (!punyaCatatan() || dataAkun().aktif == true); }
+
+    // Pembimbing: akses penuh. Jamaah: terbatas.
+    function pembimbing() {
+      return aktif() && (!punyaCatatan() || dataAkun().peran != 'Jamaah');
+    }
+
+    // Benar hanya bila jamaah membuka dokumen miliknya sendiri
+    function jamaahIni(idJamaah) {
+      return aktif() && punyaCatatan() && dataAkun().jamaahId == idJamaah;
     }
 
     // --- Data per periode haji/umroh ---
-    // periode/{id}                      → keterangan periode
-    // periode/{id}/jamaah/{id}          → data jamaah
-    // periode/{id}/agenda/{id}          → jadwal kegiatan
-    // periode/{id}/laporan/{id}         → riwayat laporan
-    // periode/{id}/titikKumpul/{id}     → titik kumpul
-    // periode/{id}/titikPenting/{id}    → lokasi penting
-    // periode/{id}/tersesat/{id}        → jamaah tersesat
-    // periode/{id}/data/{kursi|absensi} → denah kursi & absensi
     match /periode/{idPeriode} {
-      allow read, write: if sudahLogin();
+      allow read:  if aktif();
+      allow write: if pembimbing();
+
+      // Data lengkap jamaah: pembimbing, atau jamaah itu sendiri
+      match /jamaah/{idJamaah} {
+        allow read, write: if pembimbing() || jamaahIni(idJamaah);
+      }
+
+      // Daftar ringkas (nama, foto, telepon) — boleh dilihat semua jamaah.
+      // Tidak berisi data kesehatan maupun catatan harian.
+      match /direktori/{idJamaah} {
+        allow read:  if aktif();
+        allow write: if pembimbing();
+      }
+
+      // Jadwal kegiatan boleh dilihat jamaah
+      match /agenda/{idIsi} {
+        allow read:  if aktif();
+        allow write: if pembimbing();
+      }
+
+      // Riwayat laporan: jamaah boleh menambah catatannya sendiri,
+      // tetapi tidak boleh membaca atau mengubah laporan pembimbing.
+      match /laporan/{idIsi} {
+        allow read:           if pembimbing();
+        allow create:         if aktif();
+        allow update, delete: if pembimbing();
+      }
+
+      // Kursi, absensi, dan titik lokasi: pembimbing saja
       match /{koleksi}/{idIsi} {
-        allow read, write: if sudahLogin();
+        allow read, write: if pembimbing();
       }
     }
 
     // --- Data bersama semua periode ---
-    match /doa/{id}   { allow read, write: if sudahLogin(); }
-    match /fiqh/{id}  { allow read, write: if sudahLogin(); }
+    match /doa/{id}  { allow read: if aktif(); allow write: if pembimbing(); }
+    match /fiqh/{id} { allow read: if aktif(); allow write: if pembimbing(); }
 
-    // data/kategoriDoa, data/kategoriFiqh, data/telegram, data/darurat
-    match /data/{id}  { allow read, write: if sudahLogin(); }
+    // kategoriDoa, kategoriFiqh, telegram, darurat
+    match /data/{id} { allow read: if aktif(); allow write: if pembimbing(); }
+
+    // --- Daftar akun ---
+    match /akun/{id} {
+      allow read:  if login() && (request.auth.uid == id || pembimbing());
+      allow write: if pembimbing();
+    }
 
     // Selain yang disebut di atas: ditolak
     match /{document=**} { allow read, write: if false; }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { usePengguna, useDataTersinkron, useKoleksiTersinkron, kecilkanGambar, rapikanTautan, keluar, pesanGalat, hapusPeriodeLengkap, hitungIsiPeriode } from "./cloud";
+import { usePengguna, useDataTersinkron, useKoleksiTersinkron, useDokumenMentah, tambahDokumen, sinkronDirektori, kecilkanGambar, rapikanTautan, keluar, pesanGalat, hapusPeriodeLengkap, hitungIsiPeriode, buatAkunBaru, useAkunSaya, lupaSandi } from "./cloud";
 import LoginGate from "./LoginGate";
 import {
   Users, Plus, Search, Pencil, Trash2, ArrowLeft, Phone, MessageCircle,
@@ -12,7 +12,8 @@ import {
   LogOut, Loader2, CloudOff, Link as LinkIcon, Scale, LayoutGrid,
   Tags, ChevronDown, Download as DownloadIcon, Smartphone, AlertOctagon,
   ArrowRightLeft, Home, Map as MapIcon, Route, HeartPulse, NotebookPen,
-  Activity, Thermometer, Smile,
+  Activity, Thermometer, Smile, Settings, ShieldCheck, ShieldOff, KeyRound,
+  UserCog, Mail, CircleSlash, ContactRound, Lock,
 } from "lucide-react";
 
 /* ============================================================
@@ -567,18 +568,30 @@ function AppInti({ pengguna }) {
     try { localStorage.setItem("kbih-periode", String(id)); } catch { /* abaikan */ }
   };
 
-  const pid = String(idAktif || (periode[0] && periode[0].id) || "kosong");
+  const akunSaya = useAkunSaya(pengguna.uid);
+  const peranSaya = akunSaya === undefined ? "memuat" : (akunSaya?.peran || "Pembimbing");
+  const bolehKelola = peranSaya !== "Jamaah";
+
+  // Akun jamaah terkunci pada periode tempat datanya berada
+  const pid = bolehKelola
+    ? String(idAktif || (periode[0] && periode[0].id) || "kosong")
+    : String(akunSaya?.periodeId || idAktif || (periode[0] && periode[0].id) || "kosong");
   const periodeAktif = periode.find((p) => String(p.id) === pid) || null;
 
   // --- Data per periode ---
-  const [list, setList, siapList] = useKoleksiTersinkron(["periode", pid, "jamaah"], SEED);
+  const [list, setList, siapList] = useKoleksiTersinkron(bolehKelola ? ["periode", pid, "jamaah"] : null, SEED);
+  // Daftar ringkas (nama, foto, telepon) — boleh dibaca akun jamaah
+  const [direktori] = useKoleksiTersinkron(pid !== "kosong" ? ["periode", pid, "direktori"] : null, []);
+  // Data pribadi milik akun jamaah yang sedang login
+  const [sayaJamaah, simpanSayaJamaah, siapSaya] = useDokumenMentah(
+    !bolehKelola && akunSaya?.jamaahId ? ["periode", pid, "jamaah", String(akunSaya.jamaahId)] : null
+  );
   const [agenda, setAgenda] = useKoleksiTersinkron(["periode", pid, "agenda"], SEED_AGENDA);
-  const [seats, setSeats] = useDataTersinkron(["periode", pid, "data", "kursi"], SEED_SEATS);
-  const [absen, setAbsen] = useDataTersinkron(["periode", pid, "data", "absensi"], SEED_ABSEN);
-  const [titikPenting, setTitikPenting] = useKoleksiTersinkron(["periode", pid, "titikPenting"], SEED_TITIK_PENTING);
-  const [titikKumpul, setTitikKumpul] = useKoleksiTersinkron(["periode", pid, "titikKumpul"], SEED_TITIK_KUMPUL);
-  const [missing, setMissing] = useKoleksiTersinkron(["periode", pid, "tersesat"], []);
-  const [laporan, setLaporan] = useKoleksiTersinkron(["periode", pid, "laporan"], SEED_LAPORAN);
+  const [seats, setSeats] = useDataTersinkron(bolehKelola ? ["periode", pid, "data", "kursi"] : null, SEED_SEATS);
+  const [absen, setAbsen] = useDataTersinkron(bolehKelola ? ["periode", pid, "data", "absensi"] : null, SEED_ABSEN);
+  const [titikPenting, setTitikPenting] = useKoleksiTersinkron(bolehKelola ? ["periode", pid, "titikPenting"] : null, SEED_TITIK_PENTING);
+  const [titikKumpul, setTitikKumpul] = useKoleksiTersinkron(bolehKelola ? ["periode", pid, "titikKumpul"] : null, SEED_TITIK_KUMPUL);
+  const [laporan, setLaporan] = useKoleksiTersinkron(bolehKelola ? ["periode", pid, "laporan"] : null, SEED_LAPORAN);
 
   // --- Data bersama semua periode ---
   const [doa, setDoa] = useKoleksiTersinkron("doa", SEED_DOA);
@@ -589,25 +602,49 @@ function AppInti({ pengguna }) {
 
   const [page, setPage] = useState("periode");
   const pasang = usePemasangan();
+
+  // Pembimbing menyalin daftar ringkas agar bisa dibaca akun jamaah
+  useEffect(() => {
+    if (!bolehKelola || !siapList || pid === "kosong") return;
+    const t = setTimeout(() => sinkronDirektori(pid, list), 800);
+    return () => clearTimeout(t);
+  }, [bolehKelola, siapList, pid, list]);
   const lokasi = useLokasiGlobal();
   const [darurat, setDarurat] = useDataTersinkron("darurat", { kontak: [] });
 
   const byId = (id) => list.find((j) => j.id === Number(id));
 
-  const nav = [
+  const navLengkap = [
     { id: "periode", label: "Periode", icon: LayoutGrid },
     { id: "jamaah", label: "Jamaah", icon: Users },
+    { id: "kontak", label: "Kontak", icon: Phone },
     { id: "bus", label: "Kursi Bis", icon: Bus },
     { id: "agenda", label: "Agenda", icon: CalendarDays },
     { id: "absensi", label: "Absensi", icon: ClipboardCheck },
-    { id: "lokasi", label: "Lokasi", icon: Navigation, alert: missing.length > 0 },
+    { id: "lokasi", label: "Lokasi", icon: Navigation },
     { id: "doa", label: "Doa", icon: BookOpen },
     { id: "fiqh", label: "Fiqh", icon: Scale },
     { id: "laporan", label: "Laporan", icon: FileText },
+    { id: "akun", label: "Pengaturan", icon: Settings },
     { id: "darurat", label: "Darurat", icon: AlertOctagon, merah: true },
   ];
+  const NAV_JAMAAH_KHUSUS = [
+    { id: "kartuku", label: "Kartu Saya", icon: ContactRound },
+    { id: "kontak", label: "Jamaah", icon: Users },
+    { id: "agenda", label: "Agenda", icon: CalendarDays },
+    { id: "doa", label: "Doa", icon: BookOpen },
+    { id: "fiqh", label: "Fiqh", icon: Scale },
+    { id: "darurat", label: "Darurat", icon: AlertOctagon, merah: true },
+  ];
+  const nav = bolehKelola ? navLengkap : NAV_JAMAAH_KHUSUS;
+
+  // Jika halaman aktif tidak boleh dibuka peran ini, alihkan
+  useEffect(() => {
+    if (peranSaya === "memuat") return;
+    if (!nav.some((n) => n.id === page)) setPage(bolehKelola ? "periode" : "kartuku");
+  }, [peranSaya, page]);
   // Halaman yang butuh periode aktif
-  const perluPeriode = ["jamaah", "bus", "agenda", "absensi", "lokasi", "laporan"];
+  const perluPeriode = bolehKelola ? ["jamaah", "kontak", "bus", "agenda", "absensi", "lokasi", "laporan"] : [];
 
   return (
     <div className="kbih-root" style={{ background: C.bg, minHeight: "100vh" }}>
@@ -699,17 +736,23 @@ function AppInti({ pengguna }) {
         ) : (
         <>
         {page === "periode" && (
-          <PeriodePage periode={periode} setPeriode={setPeriode} idAktif={pid}
-            onPilih={(id) => { pilihPeriode(id); setPage("jamaah"); }} siap={siapPeriode} />
+          <PeriodePage periode={periode} setPeriode={setPeriode} idAktif={pid} bolehKelola={bolehKelola}
+            onPilih={(id) => { pilihPeriode(id); setPage(bolehKelola ? "jamaah" : "agenda"); }} siap={siapPeriode} />
+        )}
+        {page === "akun" && <PengaturanPage pengguna={pengguna} akunSaya={akunSaya} list={list} pid={pid} periodeAktif={periodeAktif} />}
+        {page === "kartuku" && (
+          <KartuSayaPage saya={sayaJamaah} simpan={simpanSayaJamaah} siap={siapSaya}
+            akunSaya={akunSaya} pengguna={pengguna} tg={tg} pid={pid} periodeAktif={periodeAktif} />
         )}
         {page === "jamaah" && <JamaahPage list={list} setList={setList} pengguna={pengguna} />}
+        {page === "kontak" && <KontakPage list={bolehKelola ? list : direktori} bolehKelola={bolehKelola} />}
         {page === "bus" && <BusPage list={list} seats={seats} setSeats={setSeats} byId={byId} />}
-        {page === "agenda" && <AgendaPage agenda={agenda} setAgenda={setAgenda} list={list} absen={absen} setAbsen={setAbsen} />}
+        {page === "agenda" && <AgendaPage agenda={agenda} setAgenda={setAgenda} list={list} absen={absen} setAbsen={setAbsen} bolehKelola={bolehKelola} />}
         {page === "absensi" && <AbsensiPage agenda={agenda} list={list} absen={absen} setAbsen={setAbsen} />}
-        {page === "lokasi" && <LokasiPage list={list} titikPenting={titikPenting} setTitikPenting={setTitikPenting} titikKumpul={titikKumpul} setTitikKumpul={setTitikKumpul} missing={missing} setMissing={setMissing} lokasi={lokasi} />}
-        {page === "doa" && <DoaPage doa={doa} setDoa={setDoa} kategori={katDoa || []} setKategori={setKatDoa} />}
-        {page === "fiqh" && <FiqhPage fiqh={fiqh} setFiqh={setFiqh} kategori={katFiqh || []} setKategori={setKatFiqh} />}
-        {page === "laporan" && <LaporanPage laporan={laporan} setLaporan={setLaporan} tg={{ ...tg, pencatat: tg?.pencatat || pengguna.email?.split("@")[0] || "" }} setTg={setTg} agenda={agenda} list={list} absen={absen} missing={missing} periodeAktif={periodeAktif} />}
+        {page === "lokasi" && <LokasiPage titikPenting={titikPenting} setTitikPenting={setTitikPenting} titikKumpul={titikKumpul} setTitikKumpul={setTitikKumpul} lokasi={lokasi} />}
+        {page === "doa" && <DoaPage doa={doa} setDoa={setDoa} kategori={katDoa || []} setKategori={setKatDoa} bolehKelola={bolehKelola} />}
+        {page === "fiqh" && <FiqhPage fiqh={fiqh} setFiqh={setFiqh} kategori={katFiqh || []} setKategori={setKatFiqh} bolehKelola={bolehKelola} />}
+        {page === "laporan" && <LaporanPage laporan={laporan} setLaporan={setLaporan} tg={{ ...tg, pencatat: tg?.pencatat || pengguna.email?.split("@")[0] || "" }} setTg={setTg} agenda={agenda} list={list} absen={absen} periodeAktif={periodeAktif} />}
         </>
         )}
       </main>
@@ -1385,7 +1428,7 @@ function SeatPicker({ seatId, current, pool, onAssign, onClear, onClose }) {
 /* ============================================================
    AGENDA PAGE
    ============================================================ */
-function AgendaPage({ agenda, setAgenda, list, absen, setAbsen }) {
+function AgendaPage({ agenda, setAgenda, list, absen, setAbsen, bolehKelola = true }) {
   const [mode, setMode] = useState("list"); // list | form | absen
   const [editing, setEditing] = useState(null);
   const [absenId, setAbsenId] = useState(null);
@@ -1401,7 +1444,7 @@ function AgendaPage({ agenda, setAgenda, list, absen, setAbsen }) {
     <div className="fade">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
         <div><h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Agenda Perjalanan</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Jadwal kegiatan selama bimbingan & di tanah suci.</p></div>
-        <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}><Plus size={18} /> Tambah Agenda</button>
+        {bolehKelola && <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}><Plus size={18} /> Tambah Agenda</button>}
       </div>
 
       {sorted.length === 0 ? <div style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 16, padding: "48px 20px", textAlign: "center", color: C.muted }}><CalendarDays size={32} color={C.border} /><p style={{ marginTop: 12, fontWeight: 600 }}>Belum ada agenda.</p></div> : (
@@ -1431,13 +1474,15 @@ function AgendaPage({ agenda, setAgenda, list, absen, setAbsen }) {
                         </button>
                       )}
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 7, alignItems: "flex-end" }}>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button className="btn iconbtn" onClick={() => { setEditing(a); setMode("form"); }} style={{ background: C.bg, padding: 8, borderRadius: 9 }}><Pencil size={15} /></button>
-                        <button className="btn iconbtn" onClick={() => remove(a.id)} style={{ background: C.dangerSoft, color: C.danger, padding: 8, borderRadius: 9 }}><Trash2 size={15} /></button>
+                    {bolehKelola && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7, alignItems: "flex-end" }}>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button className="btn iconbtn" onClick={() => { setEditing(a); setMode("form"); }} style={{ background: C.bg, padding: 8, borderRadius: 9 }}><Pencil size={15} /></button>
+                          <button className="btn iconbtn" onClick={() => remove(a.id)} style={{ background: C.dangerSoft, color: C.danger, padding: 8, borderRadius: 9 }}><Trash2 size={15} /></button>
+                        </div>
+                        <button className="btn" onClick={() => { setAbsenId(a.id); setMode("absen"); }} style={{ background: C.green, color: "#fff", padding: "8px 14px", borderRadius: 10, fontSize: 13 }}><ClipboardCheck size={15} /> Absensi ({hadir}/{list.length})</button>
                       </div>
-                      <button className="btn" onClick={() => { setAbsenId(a.id); setMode("absen"); }} style={{ background: C.green, color: "#fff", padding: "8px 14px", borderRadius: 10, fontSize: 13 }}><ClipboardCheck size={15} /> Absensi ({hadir}/{list.length})</button>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1777,11 +1822,9 @@ function useLokasiGlobal() {
   return { pos, aktif, galat, nyalakan, matikan, ambilSekali, kompas };
 }
 
-function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitikKumpul, missing, setMissing, lokasi }) {
-  const [modal, setModal] = useState(null); // 'tersesat' | 'penting' | 'kumpul'
+function LokasiPage({ titikPenting, setTitikPenting, titikKumpul, setTitikKumpul, lokasi }) {
+  const [modal, setModal] = useState(null); // 'penting' | 'kumpul'
   const { pos, aktif: tracking, galat: errMsg, nyalakan: mulaiLokasi, matikan: berhentiLokasi, kompas } = lokasi;
-
-  const missingEnriched = missing.map((m) => ({ ...m, jamaah: list.find((j) => j.id === m.jamaahId) })).filter((m) => m.jamaah);
 
   return (
     <div className="fade">
@@ -1823,29 +1866,6 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
         )}
       </div>
 
-      {/* jamaah tersesat */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: C.danger }}><AlertTriangle size={16} /> Jamaah Tersesat / Belum Kumpul</span>
-        <button className="btn" onClick={() => setModal("tersesat")} style={{ background: C.dangerSoft, color: C.danger, padding: "7px 13px", borderRadius: 10, fontSize: 12.5 }}><Plus size={15} /> Tandai</button>
-      </div>
-      {missingEnriched.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: C.muted, background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 24 }}>Tidak ada jamaah yang ditandai tersesat saat ini. Alhamdulillah.</div>
-      ) : (
-        <div className="kartu-grid" style={{ marginBottom: 24 }}>
-          {missingEnriched.map((m) => (
-            <TitikCard key={m.id} arahHP={kompas.arah} pos={pos} lat={m.lat} lng={m.lng} nama={m.jamaah.nama} accent={C.danger} accentBg={C.dangerSoft}
-              icon={AlertTriangle} avatarFoto={m.jamaah.foto}
-              catatan={m.catatan || "Belum kumpul di titik yang ditentukan."}
-              footer={
-                <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                  <ContactBtns tel={m.jamaah.telepon} size={32} />
-                  <button className="btn" onClick={() => setMissing((s) => s.filter((x) => x.id !== m.id))} style={{ marginLeft: "auto", background: C.greenSoft, color: C.green, padding: "7px 12px", borderRadius: 9, fontSize: 12 }}><CheckCircle2 size={14} /> Sudah ditemukan</button>
-                </div>
-              } />
-          ))}
-        </div>
-      )}
-
       {/* titik kumpul */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: C.green }}><Flag size={16} /> Titik Kumpul</span>
@@ -1876,7 +1896,6 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
         ))}
       </div>
 
-      {modal === "tersesat" && <TandaiTersesatModal list={list} missing={missing} pos={pos} onClose={() => setModal(null)} onSave={(m) => { setMissing((s) => [...s, m]); setModal(null); }} />}
       {modal === "kumpul" && <TitikModal judul="Tambah Titik Kumpul" ikon={Flag} warna={C.green} contohNama="cth. Pintu King Abdul Aziz (Gate 1)" onClose={() => setModal(null)} onSave={(t) => { setTitikKumpul((s) => [...s, t]); setModal(null); }} />}
       {modal === "penting" && <TitikModal judul="Tambah Lokasi Penting" ikon={Landmark} warna={C.goldDeep} contohNama="cth. Hotel Al-Massa, Makkah" onClose={() => setModal(null)} onSave={(t) => { setTitikPenting((s) => [...s, t]); setModal(null); }} />}
     </div>
@@ -1967,64 +1986,6 @@ function putarKeInstruksi(d) {
   return "Serong kiri";
 }
 
-function TandaiTersesatModal({ list, missing, pos, onClose, onSave }) {
-  const [jamaahId, setJamaahId] = useState("");
-  const [catatan, setCatatan] = useState("");
-  const [sumber, setSumber] = useState(pos ? "sekarang" : "manual");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
-  const tersediaJamaah = list.filter((j) => !missing.some((m) => m.jamaahId === j.id));
-  const canSave = jamaahId && ((sumber === "sekarang" && pos) || (sumber === "manual" && lat && lng));
-
-  const submit = () => {
-    const p = sumber === "sekarang" ? pos : { lat: parseFloat(lat), lng: parseFloat(lng) };
-    onSave({ id: Date.now(), jamaahId: Number(jamaahId), catatan, lat: p.lat, lng: p.lng, waktu: new Date().toISOString() });
-  };
-
-  return (
-    <Modal onClose={onClose} width={440}>
-      <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.danger, display: "flex", alignItems: "center", gap: 8 }}><AlertTriangle size={18} /> Tandai Jamaah Tersesat</h3>
-          <button className="btn iconbtn" onClick={onClose} style={{ background: C.bg, padding: 7, borderRadius: 9 }}><X size={16} /></button>
-        </div>
-
-        <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Nama jamaah</label>
-        <select className="field" style={{ ...inputStyle, marginBottom: 14 }} value={jamaahId} onChange={(e) => setJamaahId(e.target.value)}>
-          <option value="">— pilih jamaah —</option>
-          {tersediaJamaah.map((j) => <option key={j.id} value={j.id}>{j.nama}</option>)}
-        </select>
-
-        <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Catatan (opsional)</label>
-        <textarea className="field" rows={2} style={{ ...inputStyle, resize: "vertical", marginBottom: 14 }} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="cth. terakhir terlihat dekat gerbang King Fahd" />
-
-        <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>Lokasi terakhir terlihat</label>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-          <button className="btn" onClick={() => setSumber("sekarang")} disabled={!pos}
-            style={{ justifyContent: "flex-start", padding: "10px 12px", borderRadius: 11, border: `1.5px solid ${sumber === "sekarang" ? C.green : C.border}`, background: sumber === "sekarang" ? C.greenSoft : "#fff", color: pos ? C.ink : C.border, opacity: pos ? 1 : .6 }}>
-            <Crosshair size={16} color={sumber === "sekarang" ? C.green : C.muted} /> {pos ? "Pakai lokasi saya sekarang" : "Pakai lokasi saya sekarang (aktifkan lokasi dulu)"}
-          </button>
-          <button className="btn" onClick={() => setSumber("manual")}
-            style={{ justifyContent: "flex-start", padding: "10px 12px", borderRadius: 11, border: `1.5px solid ${sumber === "manual" ? C.green : C.border}`, background: sumber === "manual" ? C.greenSoft : "#fff" }}>
-            <MapPin size={16} color={sumber === "manual" ? C.green : C.muted} /> Masukkan koordinat manual
-          </button>
-          {sumber === "manual" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 2 }}>
-              <input className="field" style={inputStyle} placeholder="Lintang (lat)" value={lat} onChange={(e) => setLat(e.target.value)} />
-              <input className="field" style={inputStyle} placeholder="Bujur (lng)" value={lng} onChange={(e) => setLng(e.target.value)} />
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button className="btn" onClick={onClose} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "10px 18px", borderRadius: 11 }}>Batal</button>
-          <button className="btn" disabled={!canSave} onClick={submit} style={{ background: canSave ? C.danger : C.border, color: "#fff", padding: "10px 20px", borderRadius: 11, cursor: canSave ? "pointer" : "not-allowed" }}><AlertTriangle size={16} /> Tandai Tersesat</button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 function TitikModal({ judul, ikon: Ikon, warna, contohNama, onClose, onSave }) {
   const [nama, setNama] = useState("");
   const [catatan, setCatatan] = useState("");
@@ -2113,7 +2074,7 @@ async function kirimTelegram(token, chatId, text) {
   return data;
 }
 
-function LaporanPage({ laporan, setLaporan, tg, setTg, agenda, list, absen, missing }) {
+function LaporanPage({ laporan, setLaporan, tg, setTg, agenda, list, absen, periodeAktif }) {
   const [mode, setMode] = useState("list");
   const [showConfig, setShowConfig] = useState(!(tg.token && tg.chatId));
   const [detail, setDetail] = useState(null);
@@ -2135,7 +2096,7 @@ function LaporanPage({ laporan, setLaporan, tg, setTg, agenda, list, absen, miss
   const hapus = (id) => setLaporan((l) => l.filter((x) => x.id !== id));
 
   if (mode === "form")
-    return <LaporanForm tg={tg} terkonfigurasi={terkonfigurasi} agenda={agenda} list={list} absen={absen} missing={missing} onCancel={() => setMode("list")} onSubmit={proses} />;
+    return <LaporanForm tg={tg} terkonfigurasi={terkonfigurasi} agenda={agenda} list={list} absen={absen} onCancel={() => setMode("list")} onSubmit={proses} />;
 
   return (
     <div className="fade">
@@ -2269,7 +2230,7 @@ function TelegramConfig({ tg, setTg }) {
   );
 }
 
-function LaporanForm({ tg, terkonfigurasi, agenda, list, absen, missing, onCancel, onSubmit }) {
+function LaporanForm({ tg, terkonfigurasi, agenda, list, absen, onCancel, onSubmit }) {
   const [f, setF] = useState({ jenis: "Umum", judul: "", isi: "", pencatat: tg.pencatat || "" });
   useEffect(() => { setF((s) => (s.pencatat ? s : { ...s, pencatat: tg.pencatat || "" })); }, [tg.pencatat]);
   const [agSel, setAgSel] = useState("");
@@ -2297,7 +2258,6 @@ function LaporanForm({ tg, terkonfigurasi, agenda, list, absen, missing, onCance
     sisip([`Kondisi jamaah hari ini (${baris.length} tercatat, ${perluPerhatian} perlu perhatian):`, ...baris].join("\n"));
   };
 
-  const genTersesat = () => { if (!missing.length) return sisip("Tidak ada jamaah yang ditandai tersesat."); sisip("Jamaah tersesat / belum kumpul:\n" + missing.map((m) => { const j = list.find((x) => x.id === m.jamaahId); return `- ${j ? j.nama : "?"}${m.catatan ? ` (${m.catatan})` : ""}`; }).join("\n")); };
   const genAbsensi = () => { const ag = agenda.find((a) => a.id === Number(agSel)); if (!ag) return; const rec = absen[ag.id] || {}; const grp = (st) => list.filter((j) => rec[j.id] === st).map((j) => j.nama); const h = grp("hadir"), iz = grp("izin"), t = grp("tidak"); sisip([`Absensi — ${ag.judul} (${tglRingkas(ag.tanggal)} ${ag.waktu || ""}):`, `Hadir (${h.length}): ${h.join(", ") || "-"}`, `Izin (${iz.length}): ${iz.join(", ") || "-"}`, `Tidak hadir (${t.length}): ${t.join(", ") || "-"}`].join("\n")); };
 
   return (
@@ -2319,7 +2279,6 @@ function LaporanForm({ tg, terkonfigurasi, agenda, list, absen, missing, onCance
           <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Sisipkan data otomatis:</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <button className="btn" onClick={genRingkasan} style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.ink, padding: "7px 12px", borderRadius: 9, fontSize: 12.5 }}><Users size={14} /> Ringkasan jamaah</button>
-            <button className="btn" onClick={genTersesat} style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.ink, padding: "7px 12px", borderRadius: 9, fontSize: 12.5 }}><AlertTriangle size={14} /> Jamaah tersesat</button>
             <button className="btn" onClick={genKondisi} style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.ink, padding: "7px 12px", borderRadius: 9, fontSize: 12.5 }}><HeartPulse size={14} /> Kondisi jamaah hari ini</button>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <select className="field" style={{ ...inputStyle, padding: "7px 10px", width: "auto" }} value={agSel} onChange={(e) => setAgSel(e.target.value)}>
@@ -2347,7 +2306,7 @@ function LaporanForm({ tg, terkonfigurasi, agenda, list, absen, missing, onCance
 /* ============================================================
    DOA PAGE — kumpulan doa, tulis & unggah, dengan pencarian
    ============================================================ */
-function DoaPage({ doa, setDoa, kategori, setKategori }) {
+function DoaPage({ doa, setDoa, kategori, setKategori, bolehKelola = true }) {
   const [mode, setMode] = useState("list");
   const [editing, setEditing] = useState(null);
   const [q, setQ] = useState("");
@@ -2380,7 +2339,7 @@ function DoaPage({ doa, setDoa, kategori, setKategori }) {
       </div>
 
       <FilterKategori q={q} setQ={setQ} kat={kat} setKat={setKat} kategori={kategori}
-        onKelola={() => setKelola(true)} jumlah={hasil.length} total={doa.length}
+        onKelola={() => setKelola(true)} jumlah={hasil.length} total={doa.length} bolehKelola={bolehKelola}
         placeholder="Cari doa — judul, bacaan latin, arti, atau catatan…" />
 
       {hasil.length === 0 ? (
@@ -2397,10 +2356,12 @@ function DoaPage({ doa, setDoa, kategori, setKategori }) {
                   {d.kategori && <Badge bg={C.goldSoft} color={C.goldDeep} icon={BookOpen}>{d.kategori}</Badge>}
                   <div style={{ fontSize: 16.5, fontWeight: 700, marginTop: 7 }}>{d.judul}</div>
                 </div>
-                <div style={{ display: "flex", gap: 6, height: "fit-content" }}>
-                  <button className="btn iconbtn" onClick={() => { setEditing(d); setMode("form"); }} title="Ubah" style={{ background: C.bg, padding: 8, borderRadius: 9 }}><Pencil size={15} /></button>
-                  <button className="btn iconbtn" onClick={() => hapus(d.id)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 8, borderRadius: 9 }}><Trash2 size={15} /></button>
-                </div>
+                {bolehKelola && (
+                  <div style={{ display: "flex", gap: 6, height: "fit-content" }}>
+                    <button className="btn iconbtn" onClick={() => { setEditing(d); setMode("form"); }} title="Ubah" style={{ background: C.bg, padding: 8, borderRadius: 9 }}><Pencil size={15} /></button>
+                    <button className="btn iconbtn" onClick={() => hapus(d.id)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 8, borderRadius: 9 }}><Trash2 size={15} /></button>
+                  </div>
+                )}
               </div>
 
               {d.arab && (
@@ -2517,7 +2478,7 @@ function TanpaPeriode({ onBuka }) {
 /* ============================================================
    PERIODE PAGE — beranda pemilihan periode haji/umroh
    ============================================================ */
-function PeriodePage({ periode, setPeriode, idAktif, onPilih, siap }) {
+function PeriodePage({ periode, setPeriode, idAktif, onPilih, siap, bolehKelola = true }) {
   const [form, setForm] = useState(null);   // null | {} | data
   const [hapus, setHapus] = useState(null);
 
@@ -2538,9 +2499,11 @@ function PeriodePage({ periode, setPeriode, idAktif, onPilih, siap }) {
           <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Periode Haji & Umroh</h2>
           <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Pilih periode untuk mengelola jamaah, agenda, kursi, dan laporannya.</p>
         </div>
-        <button className="btn" onClick={() => setForm({})} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
-          <Plus size={18} /> Tambah Periode
-        </button>
+        {bolehKelola && (
+          <button className="btn" onClick={() => setForm({})} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
+            <Plus size={18} /> Tambah Periode
+          </button>
+        )}
       </div>
 
       <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}44`, borderRadius: 13, padding: "11px 14px", margin: "16px 0 20px", fontSize: 12.5, color: C.goldDeep, display: "flex", gap: 8, alignItems: "flex-start" }}>
@@ -2592,8 +2555,10 @@ function PeriodePage({ periode, setPeriode, idAktif, onPilih, siap }) {
                     style={{ flex: 1, justifyContent: "center", background: aktif ? C.greenSoft : C.green, color: aktif ? C.green : "#fff", padding: "9px 12px", borderRadius: 10, fontSize: 13 }}>
                     {aktif ? <><Check size={15} /> Lanjutkan</> : <><ChevronRight size={15} /> Buka</>}
                   </button>
-                  <button className="btn iconbtn" onClick={() => setForm(p)} title="Ubah" style={{ background: C.bg, padding: 9, borderRadius: 10 }}><Pencil size={15} /></button>
-                  <button className="btn iconbtn" onClick={() => setHapus(p)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 9, borderRadius: 10 }}><Trash2 size={15} /></button>
+                  {bolehKelola && <>
+                    <button className="btn iconbtn" onClick={() => setForm(p)} title="Ubah" style={{ background: C.bg, padding: 9, borderRadius: 10 }}><Pencil size={15} /></button>
+                    <button className="btn iconbtn" onClick={() => setHapus(p)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 9, borderRadius: 10 }}><Trash2 size={15} /></button>
+                  </>}
                 </div>
               </div>
             );
@@ -2824,7 +2789,7 @@ function KelolaKategoriModal({ kategori, setKategori, items, setItems, judul, on
 }
 
 /* Baris filter kategori + pencarian, dipakai Doa & Fiqh */
-function FilterKategori({ q, setQ, kat, setKat, kategori, onKelola, placeholder, jumlah, total }) {
+function FilterKategori({ q, setQ, kat, setKat, kategori, onKelola, placeholder, jumlah, total, bolehKelola = true }) {
   return (
     <>
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 14 }}>
@@ -2839,10 +2804,12 @@ function FilterKategori({ q, setQ, kat, setKat, kategori, onKelola, placeholder,
             return <button key={k} className="btn" onClick={() => setKat(k)}
               style={{ background: on ? C.green : C.bg, color: on ? "#fff" : C.muted, padding: "6px 13px", borderRadius: 99, fontSize: 12.5, border: `1px solid ${on ? C.green : C.border}` }}>{k}</button>;
           })}
-          <button className="btn" onClick={onKelola} title="Kelola kategori"
-            style={{ background: "#fff", color: C.green, border: `1px dashed ${C.green}66`, padding: "6px 12px", borderRadius: 99, fontSize: 12.5 }}>
-            <Tags size={14} /> Kelola
-          </button>
+          {bolehKelola && (
+            <button className="btn" onClick={onKelola} title="Kelola kategori"
+              style={{ background: "#fff", color: C.green, border: `1px dashed ${C.green}66`, padding: "6px 12px", borderRadius: 99, fontSize: 12.5 }}>
+              <Tags size={14} /> Kelola
+            </button>
+          )}
         </div>
       </div>
       <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Menampilkan {jumlah} dari {total}.</div>
@@ -2853,7 +2820,7 @@ function FilterKategori({ q, setQ, kat, setKat, kategori, onKelola, placeholder,
 /* ============================================================
    FIQH PAGE — kumpulan hukum fiqh manasik
    ============================================================ */
-function FiqhPage({ fiqh, setFiqh, kategori, setKategori }) {
+function FiqhPage({ fiqh, setFiqh, kategori, setKategori, bolehKelola = true }) {
   const [mode, setMode] = useState("list");
   const [editing, setEditing] = useState(null);
   const [q, setQ] = useState("");
@@ -2885,13 +2852,15 @@ function FiqhPage({ fiqh, setFiqh, kategori, setKategori }) {
           <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Hukum Fiqh</h2>
           <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Rujukan hukum manasik untuk menjawab pertanyaan jamaah di lapangan.</p>
         </div>
-        <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
-          <Plus size={18} /> Tambah Catatan
-        </button>
+        {bolehKelola && (
+          <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
+            <Plus size={18} /> Tambah Catatan
+          </button>
+        )}
       </div>
 
       <FilterKategori q={q} setQ={setQ} kat={kat} setKat={setKat} kategori={kategori}
-        onKelola={() => setKelola(true)} jumlah={hasil.length} total={fiqh.length}
+        onKelola={() => setKelola(true)} jumlah={hasil.length} total={fiqh.length} bolehKelola={bolehKelola}
         placeholder="Cari hukum — judul, uraian, dalil, atau rujukan…" />
 
       {hasil.length === 0 ? (
@@ -2909,10 +2878,12 @@ function FiqhPage({ fiqh, setFiqh, kategori, setKategori }) {
                   {d.kategori && <Badge bg={C.goldSoft} color={C.goldDeep} icon={Scale}>{d.kategori}</Badge>}
                   <div style={{ fontSize: 16.5, fontWeight: 700, marginTop: 7 }}>{d.judul}</div>
                 </div>
-                <div style={{ display: "flex", gap: 6, height: "fit-content" }}>
-                  <button className="btn iconbtn" onClick={() => { setEditing(d); setMode("form"); }} title="Ubah" style={{ background: C.bg, padding: 8, borderRadius: 9 }}><Pencil size={15} /></button>
-                  <button className="btn iconbtn" onClick={() => hapus(d.id)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 8, borderRadius: 9 }}><Trash2 size={15} /></button>
-                </div>
+                {bolehKelola && (
+                  <div style={{ display: "flex", gap: 6, height: "fit-content" }}>
+                    <button className="btn iconbtn" onClick={() => { setEditing(d); setMode("form"); }} title="Ubah" style={{ background: C.bg, padding: 8, borderRadius: 9 }}><Pencil size={15} /></button>
+                    <button className="btn iconbtn" onClick={() => hapus(d.id)} title="Hapus" style={{ background: C.dangerSoft, color: C.danger, padding: 8, borderRadius: 9 }}><Trash2 size={15} /></button>
+                  </div>
+                )}
               </div>
 
               {d.isi && <div style={{ fontSize: 14.5, lineHeight: 1.7, color: C.ink, whiteSpace: "pre-wrap" }}>{d.isi}</div>}
@@ -3258,6 +3229,746 @@ function DaruratPage({ lokasi, tg, darurat, setDarurat, pengguna, periodeAktif, 
         3. Kejadian dicatat di riwayat laporan<br />
         4. WhatsApp kontak pertama terbuka dengan pesan siap kirim
       </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   KONTAK — daftar jamaah ringkas untuk menghubungi cepat
+   ============================================================ */
+function KontakPage({ list, bolehKelola = true }) {
+  const [q, setQ] = useState("");
+  const [rombongan, setRombongan] = useState("Semua");
+
+  const daftarRombongan = useMemo(
+    () => ["Semua", ...Array.from(new Set(list.map((j) => j.rombongan).filter(Boolean))).sort()],
+    [list]
+  );
+
+  const hasil = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return list
+      .filter((j) => {
+        if (rombongan !== "Semua" && j.rombongan !== rombongan) return false;
+        if (!s) return true;
+        return [j.nama, j.telepon, j.rombongan].join(" ").toLowerCase().includes(s);
+      })
+      .sort((a, b) => (a.nama || "").localeCompare(b.nama || "", "id"));
+  }, [list, q, rombongan]);
+
+  const adaNomor = list.filter((j) => j.telepon).length;
+
+  return (
+    <div className="fade">
+      <div style={{ marginBottom: 16 }}>
+        <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Kontak Jamaah</h2>
+        <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>
+          {bolehKelola
+            ? <>Daftar ringkas untuk menghubungi jamaah dengan cepat. {adaNomor} dari {list.length} jamaah punya nomor.</>
+            : <>Daftar sesama jamaah dalam rombongan Anda. {list.length} orang terdaftar.</>}
+        </p>
+        {!bolehKelola && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.bg, color: C.muted, borderRadius: 9, padding: "6px 11px", fontSize: 11.5, marginTop: 9 }}>
+            <Lock size={12} /> Hanya bisa dilihat — data pribadi jamaah lain tidak ditampilkan
+          </div>
+        )}
+      </div>
+
+      {/* pencarian & saringan */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 14 }}>
+        <div style={{ position: "relative", marginBottom: daftarRombongan.length > 1 ? 12 : 0 }}>
+          <Search size={17} color={C.muted} style={{ position: "absolute", left: 13, top: 12 }} />
+          <input className="field" value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="Cari nama atau nomor…" style={{ ...inputStyle, paddingLeft: 40 }} />
+          {q && <button className="btn iconbtn" onClick={() => setQ("")}
+            style={{ position: "absolute", right: 8, top: 8, background: C.bg, padding: 6, borderRadius: 8 }}><X size={14} /></button>}
+        </div>
+        {daftarRombongan.length > 1 && (
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+            {daftarRombongan.map((r) => {
+              const on = rombongan === r;
+              return (
+                <button key={r} className="btn" onClick={() => setRombongan(r)}
+                  style={{ background: on ? C.green : C.bg, color: on ? "#fff" : C.muted, padding: "6px 13px", borderRadius: 99, fontSize: 12.5, border: `1px solid ${on ? C.green : C.border}` }}>
+                  {r === "Semua" ? "Semua" : `Rombongan ${r}`}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {hasil.length === 0 ? (
+        <div style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 16, padding: "48px 20px", textAlign: "center", color: C.muted }}>
+          <Phone size={32} color={C.border} />
+          <p style={{ marginTop: 12, fontWeight: 600 }}>Tidak ada jamaah yang cocok.</p>
+        </div>
+      ) : (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
+          {hasil.map((j, i) => (
+            <div key={j.id}
+              style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+                borderTop: i === 0 ? "none" : `1px solid ${C.border}`,
+              }}>
+              <Avatar foto={j.foto} nama={j.nama} size={46} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {j.nama}
+                </div>
+                <div style={{ fontSize: 12.5, color: j.telepon ? C.muted : C.border, marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
+                  <Phone size={12} /> {j.telepon || "nomor belum diisi"}
+                  {j.rombongan && <span style={{ color: C.green, fontWeight: 700 }}>· Rmb {j.rombongan}</span>}
+                </div>
+              </div>
+              <ContactBtns tel={j.telepon} size={38} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   PENGATURAN AKUN
+   ============================================================ */
+const PERAN = {
+  Pembimbing: { warna: "#0f5c37", latar: "#e7f0ea", ikon: ShieldCheck, ket: "Akses penuh ke seluruh data" },
+  Jamaah: { warna: "#2f7fa8", latar: "#e6f0f5", ikon: User, ket: "Melihat daftar jamaah & agenda, mengelola kartunya sendiri" },
+};
+
+function PengaturanPage({ pengguna, akunSaya, list = [], pid, periodeAktif }) {
+  const [akun, setAkun, siapAkun] = useKoleksiTersinkron("akun", []);
+  const [buat, setBuat] = useState(false);
+  const [pesan, setPesan] = useState(null);
+
+  const urut = [...akun].sort((a, b) => {
+    if (a.aktif !== b.aktif) return a.aktif ? -1 : 1;
+    return (a.nama || a.email || "").localeCompare(b.nama || b.email || "", "id");
+  });
+
+  const sayaTerdaftar = akun.some((a) => a.id === pengguna.uid);
+
+  const daftarkanDiri = () => {
+    setAkun((l) => [...l, {
+      id: pengguna.uid,
+      email: pengguna.email,
+      nama: pengguna.email?.split("@")[0] || "Pembimbing",
+      peran: "Pembimbing",
+      aktif: true,
+      dibuat: new Date().toISOString(),
+      dibuatOleh: pengguna.email,
+    }]);
+    setPesan({ ok: true, teks: "Akun Anda sudah tercatat sebagai Pembimbing." });
+  };
+
+  const ubahAktif = (a) => {
+    if (a.id === pengguna.uid) {
+      alert("Anda tidak bisa menonaktifkan akun Anda sendiri.");
+      return;
+    }
+    const jadi = !a.aktif;
+    const tanya = jadi
+      ? `Aktifkan kembali akun ${a.email}?`
+      : `Nonaktifkan akun ${a.email}?\n\nOrang ini masih bisa masuk, tetapi tidak akan bisa membuka data apa pun.`;
+    if (!window.confirm(tanya)) return;
+    setAkun((l) => l.map((x) => (x.id === a.id ? { ...x, aktif: jadi } : x)));
+    setPesan({ ok: true, teks: jadi ? `Akun ${a.email} diaktifkan kembali.` : `Akun ${a.email} dinonaktifkan.` });
+  };
+
+  // Satu akun hanya boleh untuk satu jamaah, dan sebaliknya
+  const terpakai = useMemo(() => {
+    const m = {};
+    akun.forEach((a) => { if (a.jamaahId) m[String(a.jamaahId)] = a; });
+    return m;
+  }, [akun]);
+
+  const hubungkanJamaah = (a, jamaahId) => {
+    if (jamaahId && terpakai[jamaahId] && terpakai[jamaahId].id !== a.id) {
+      alert(`Data jamaah itu sudah terhubung ke akun ${terpakai[jamaahId].email}.`);
+      return;
+    }
+    setAkun((l) => l.map((x) => (x.id === a.id
+      ? { ...x, jamaahId: jamaahId || null, periodeId: jamaahId ? pid : null }
+      : x)));
+    setPesan({ ok: true, teks: jamaahId
+      ? `Akun ${a.email} dihubungkan ke data jamaah.`
+      : `Tautan data jamaah pada ${a.email} dilepas.` });
+  };
+
+  const ubahPeran = (a, peran) => {
+    if (a.id === pengguna.uid && peran === "Jamaah") {
+      alert("Anda tidak bisa menurunkan peran akun Anda sendiri.");
+      return;
+    }
+    setAkun((l) => l.map((x) => (x.id === a.id ? { ...x, peran } : x)));
+  };
+
+  const kirimReset = async (a) => {
+    if (!window.confirm(`Kirim tautan atur ulang kata sandi ke ${a.email}?`)) return;
+    try {
+      await lupaSandi(a.email);
+      setPesan({ ok: true, teks: `Tautan atur ulang kata sandi sudah dikirim ke ${a.email}.` });
+    } catch (e) {
+      setPesan({ ok: false, teks: "Gagal mengirim: " + pesanGalat(e) });
+    }
+  };
+
+  const hapusDariDaftar = (a) => {
+    if (a.id === pengguna.uid) { alert("Anda tidak bisa menghapus akun Anda sendiri."); return; }
+    if (!window.confirm(
+      `Hapus ${a.email} dari daftar?\n\nAkun akan kehilangan seluruh akses. Namun kredensial login-nya masih tersimpan di Firebase — untuk menghapus tuntas, buka Firebase Console → Authentication → Users.`
+    )) return;
+    setAkun((l) => l.filter((x) => x.id !== a.id));
+    setPesan({ ok: true, teks: `${a.email} dihapus dari daftar. Aksesnya sudah dicabut.` });
+  };
+
+  return (
+    <div className="fade">
+      <div style={{ marginBottom: 16 }}>
+        <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Pengaturan Akun</h2>
+        <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Kelola siapa saja yang boleh membuka aplikasi ini.</p>
+      </div>
+
+      {/* Akun saya */}
+      <div style={{ background: `linear-gradient(120deg, ${C.greenDeep}, ${C.green})`, borderRadius: 18, padding: 18, marginBottom: 18, color: "#fff" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 13, flexWrap: "wrap" }}>
+          <div style={{ width: 46, height: 46, borderRadius: 13, background: "#ffffff22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <UserCog size={23} />
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontSize: 11, color: "#b9cdc0", letterSpacing: ".05em", textTransform: "uppercase", fontWeight: 700 }}>Akun Anda</div>
+            <div style={{ fontSize: 15.5, fontWeight: 700, marginTop: 2, wordBreak: "break-all" }}>{pengguna.email}</div>
+            <div style={{ display: "flex", gap: 7, marginTop: 7, flexWrap: "wrap" }}>
+              <Badge bg="#ffffff26" color="#fff" icon={ShieldCheck}>{akunSaya?.peran || "Pembimbing"}</Badge>
+              {!sayaTerdaftar && <Badge bg="#ffffff26" color={C.goldSoft}>Belum tercatat di daftar</Badge>}
+            </div>
+          </div>
+          <button className="btn" onClick={() => kirimReset({ email: pengguna.email })}
+            style={{ background: "#ffffff22", color: "#fff", padding: "9px 14px", borderRadius: 11, fontSize: 12.5 }}>
+            <KeyRound size={15} /> Ubah Kata Sandi
+          </button>
+        </div>
+        {!sayaTerdaftar && (
+          <div style={{ marginTop: 14, paddingTop: 13, borderTop: "1px solid #ffffff22", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12.5, color: "#d7e4da", flex: 1, minWidth: 200 }}>
+              Akun Anda dibuat sebelum fitur ini ada, jadi belum tercatat. Catatkan agar muncul di daftar.
+            </span>
+            <button className="btn" onClick={daftarkanDiri}
+              style={{ background: C.gold, color: "#3a2c05", padding: "8px 14px", borderRadius: 10, fontSize: 12.5 }}>
+              <Plus size={15} /> Catatkan Akun Saya
+            </button>
+          </div>
+        )}
+      </div>
+
+      {pesan && (
+        <div style={{
+          background: pesan.ok ? C.greenSoft : C.dangerSoft, color: pesan.ok ? C.green : C.danger,
+          borderRadius: 12, padding: "11px 14px", marginBottom: 16, fontSize: 12.5,
+          display: "flex", gap: 8, alignItems: "flex-start",
+        }}>
+          {pesan.ok ? <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: 1 }} /> : <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />}
+          <span style={{ flex: 1 }}>{pesan.teks}</span>
+          <button className="btn iconbtn" onClick={() => setPesan(null)} style={{ background: "transparent", padding: 2 }}><X size={14} /></button>
+        </div>
+      )}
+
+      {/* Daftar akun */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}>
+          <Users size={16} /> Akun Terdaftar ({akun.length})
+        </span>
+        <button className="btn" onClick={() => setBuat(true)} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
+          <UserPlus size={17} /> Tambah Akun
+        </button>
+      </div>
+
+      {!siapAkun ? (
+        <div style={{ textAlign: "center", padding: 40, color: C.muted, fontSize: 13 }}>
+          <Loader2 size={20} className="spin" color={C.green} /><div style={{ marginTop: 8 }}>Memuat daftar akun…</div>
+        </div>
+      ) : urut.length === 0 ? (
+        <div style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 16, padding: "44px 20px", textAlign: "center", color: C.muted }}>
+          <UserCog size={32} color={C.border} />
+          <p style={{ marginTop: 12, fontWeight: 600 }}>Belum ada akun tercatat.</p>
+          <p style={{ margin: "4px 0 0", fontSize: 13 }}>Tekan "Tambah Akun" untuk membuatkan akun pembimbing atau jamaah.</p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {urut.map((a) => {
+            const P = PERAN[a.peran] || PERAN.Pembimbing;
+            const sayaSendiri = a.id === pengguna.uid;
+            return (
+              <div key={a.id} style={{
+                background: C.surface, border: `1px solid ${a.aktif ? C.border : C.danger + "44"}`,
+                borderRadius: 16, padding: 15, opacity: a.aktif ? 1 : .75,
+              }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <div style={{
+                    width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                    background: a.aktif ? P.latar : C.dangerSoft, color: a.aktif ? P.warna : C.danger,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {a.aktif ? <P.ikon size={20} /> : <ShieldOff size={20} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 150 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                      {a.nama || "(tanpa nama)"}
+                      {sayaSendiri && <Badge bg={C.greenSoft} color={C.green}>Anda</Badge>}
+                      {!a.aktif && <Badge bg={C.dangerSoft} color={C.danger} icon={CircleSlash}>Nonaktif</Badge>}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3, display: "flex", alignItems: "center", gap: 5, wordBreak: "break-all" }}>
+                      <Mail size={12} /> {a.email}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>
+                      {P.ket}{a.dibuat ? ` · dibuat ${tglRingkas(a.dibuat.slice(0, 10))}` : ""}
+                    </div>
+                  </div>
+                  <select className="field" value={a.peran || "Pembimbing"} onChange={(e) => ubahPeran(a, e.target.value)}
+                    disabled={sayaSendiri}
+                    style={{ ...inputStyle, width: "auto", padding: "7px 10px", fontSize: 12.5, opacity: sayaSendiri ? .6 : 1 }}>
+                    <option>Pembimbing</option>
+                    <option>Jamaah</option>
+                  </select>
+                </div>
+
+                {a.peran === "Jamaah" && (
+                  <div style={{ marginTop: 12, background: C.bg, borderRadius: 11, padding: "11px 13px" }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 7, display: "flex", alignItems: "center", gap: 6 }}>
+                      <ContactRound size={13} /> Terhubung ke data jamaah
+                    </div>
+                    <select className="field" value={a.jamaahId ? String(a.jamaahId) : ""}
+                      onChange={(e) => hubungkanJamaah(a, e.target.value)}
+                      style={{ ...inputStyle, fontSize: 13 }}>
+                      <option value="">— belum dihubungkan —</option>
+                      {list.map((j) => {
+                        const dipakaiOrangLain = terpakai[String(j.id)] && terpakai[String(j.id)].id !== a.id;
+                        return (
+                          <option key={j.id} value={String(j.id)} disabled={dipakaiOrangLain}>
+                            {j.nama}{j.rombongan ? ` — Rmb ${j.rombongan}` : ""}{dipakaiOrangLain ? " (sudah dipakai)" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {a.jamaahId && a.periodeId && String(a.periodeId) !== String(pid) && (
+                      <div style={{ fontSize: 11.5, color: C.goldDeep, marginTop: 6, display: "flex", gap: 5 }}>
+                        <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                        Terhubung ke periode lain — pilih ulang bila ingin memindahkannya ke periode ini.
+                      </div>
+                    )}
+                    {!a.jamaahId && (
+                      <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>
+                        Selama belum dihubungkan, jamaah tidak bisa membuka Kartu Saya.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 7, marginTop: 13, paddingTop: 12, borderTop: `1px solid ${C.border}`, flexWrap: "wrap" }}>
+                  <button className="btn" onClick={() => kirimReset(a)}
+                    style={{ background: C.goldSoft, color: C.goldDeep, padding: "7px 12px", borderRadius: 9, fontSize: 12.5 }}>
+                    <KeyRound size={14} /> Reset Kata Sandi
+                  </button>
+                  <button className="btn" onClick={() => ubahAktif(a)} disabled={sayaSendiri}
+                    style={{
+                      background: a.aktif ? C.bg : C.greenSoft, color: sayaSendiri ? C.border : (a.aktif ? C.muted : C.green),
+                      border: `1px solid ${C.border}`, padding: "7px 12px", borderRadius: 9, fontSize: 12.5,
+                      cursor: sayaSendiri ? "not-allowed" : "pointer",
+                    }}>
+                    {a.aktif ? <><ShieldOff size={14} /> Nonaktifkan</> : <><ShieldCheck size={14} /> Aktifkan</>}
+                  </button>
+                  <button className="btn" onClick={() => hapusDariDaftar(a)} disabled={sayaSendiri}
+                    style={{
+                      marginLeft: "auto", background: C.dangerSoft, color: sayaSendiri ? C.border : C.danger,
+                      padding: "7px 12px", borderRadius: 9, fontSize: 12.5,
+                      cursor: sayaSendiri ? "not-allowed" : "pointer",
+                    }}>
+                    <Trash2 size={14} /> Hapus
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Keterangan penting */}
+      <div style={{ background: C.bg, borderRadius: 14, padding: "14px 16px", marginTop: 18, fontSize: 12.5, color: C.muted, lineHeight: 1.65 }}>
+        <div style={{ fontWeight: 800, color: C.ink, marginBottom: 7, display: "flex", alignItems: "center", gap: 7 }}>
+          <ShieldCheck size={15} color={C.green} /> Tentang penghapusan akun
+        </div>
+        Firebase tidak mengizinkan aplikasi web menghapus akun orang lain — itu hanya bisa lewat Firebase Console.
+        Karena itu tombol <strong>Hapus</strong> dan <strong>Nonaktifkan</strong> di sini <strong>mencabut seluruh akses</strong>:
+        orang tersebut masih bisa memasukkan kata sandinya, tetapi tidak akan bisa membuka data apa pun.
+        <br /><br />
+        Untuk menghapus kredensialnya sampai tuntas, buka <strong>Firebase Console → Authentication → Users</strong>,
+        cari emailnya, lalu hapus dari sana.
+      </div>
+
+      {buat && (
+        <BuatAkunModal
+          onClose={() => setBuat(false)}
+          sudahAda={akun.map((a) => (a.email || "").toLowerCase())}
+          list={list} pid={pid} terpakai={terpakai} periodeAktif={periodeAktif}
+          onBerhasil={(data) => {
+            setAkun((l) => [...l, { ...data, dibuatOleh: pengguna.email }]);
+            setBuat(false);
+            setPesan({ ok: true, teks: `Akun ${data.email} berhasil dibuat sebagai ${data.peran}.` });
+          }} />
+      )}
+    </div>
+  );
+}
+
+function BuatAkunModal({ onClose, onBerhasil, sudahAda, list = [], pid, terpakai = {}, periodeAktif }) {
+  const [f, setF] = useState({ nama: "", email: "", sandi: "", peran: "Jamaah", jamaahId: "" });
+  const [sibuk, setSibuk] = useState(false);
+  const [galat, setGalat] = useState("");
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  const acakSandi = () => {
+    const huruf = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let hasil = "";
+    for (let i = 0; i < 10; i++) hasil += huruf[Math.floor(Math.random() * huruf.length)];
+    set("sandi", hasil);
+  };
+
+  const kirim = async () => {
+    setGalat("");
+    if (!f.email.trim()) return setGalat("Email belum diisi.");
+    if (sudahAda.includes(f.email.trim().toLowerCase())) return setGalat("Email itu sudah ada di daftar akun.");
+    if (f.sandi.length < 6) return setGalat("Kata sandi minimal 6 karakter.");
+    if (f.peran === "Jamaah" && f.jamaahId && terpakai[f.jamaahId]) {
+      return setGalat("Data jamaah itu sudah terhubung ke akun lain.");
+    }
+    setSibuk(true);
+    try {
+      const { uid, email } = await buatAkunBaru(f.email, f.sandi);
+      onBerhasil({
+        id: uid, email, nama: f.nama.trim() || email.split("@")[0],
+        peran: f.peran, aktif: true, dibuat: new Date().toISOString(),
+        jamaahId: f.peran === "Jamaah" && f.jamaahId ? f.jamaahId : null,
+        periodeId: f.peran === "Jamaah" && f.jamaahId ? pid : null,
+      });
+    } catch (e) {
+      setGalat(pesanGalat(e));
+    }
+    setSibuk(false);
+  };
+
+  const P = PERAN[f.peran];
+
+  return (
+    <Modal onClose={sibuk ? () => {} : onClose} width={430}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+            <UserPlus size={18} color={C.green} /> Tambah Akun
+          </h3>
+          <button className="btn iconbtn" onClick={onClose} style={{ background: C.bg, padding: 7, borderRadius: 9 }}><X size={16} /></button>
+        </div>
+        <p style={{ margin: "0 0 16px", fontSize: 12.5, color: C.muted }}>
+          Akun dibuat langsung tanpa membuat Anda keluar dari aplikasi.
+        </p>
+
+        <Label>Peran</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 6 }}>
+          {Object.entries(PERAN).map(([k, v]) => {
+            const on = f.peran === k;
+            return (
+              <button key={k} className="btn" onClick={() => set("peran", k)}
+                style={{
+                  justifyContent: "flex-start", padding: "10px 12px", borderRadius: 11, fontSize: 13,
+                  background: on ? v.latar : "#fff", color: on ? v.warna : C.muted,
+                  border: `1.5px solid ${on ? v.warna : C.border}`,
+                }}>
+                <v.ikon size={16} /> {k}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>{P.ket}.</div>
+
+        {f.peran === "Jamaah" && (
+          <>
+            <Label>Hubungkan ke data jamaah</Label>
+            <select className="field" style={{ ...inputStyle, marginBottom: 6 }} value={f.jamaahId}
+              onChange={(e) => {
+                const id = e.target.value;
+                const j = list.find((x) => String(x.id) === id);
+                setF((s) => ({ ...s, jamaahId: id, nama: s.nama || (j?.nama || "") }));
+              }}>
+              <option value="">— pilih nanti —</option>
+              {list.map((j) => {
+                const dipakai = !!terpakai[String(j.id)];
+                return (
+                  <option key={j.id} value={String(j.id)} disabled={dipakai}>
+                    {j.nama}{j.rombongan ? ` — Rmb ${j.rombongan}` : ""}{dipakai ? " (sudah dipakai)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+            <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>
+              Satu akun hanya untuk satu jamaah{periodeAktif ? `, pada periode ${periodeAktif.nama}` : ""}.
+            </div>
+          </>
+        )}
+
+        <Label>Nama</Label>
+        <input className="field" style={{ ...inputStyle, marginBottom: 12 }} value={f.nama}
+          onChange={(e) => set("nama", e.target.value)} placeholder="cth. Ustadz Fulan" />
+
+        <Label req>Email</Label>
+        <input className="field" type="email" style={{ ...inputStyle, marginBottom: 12 }} value={f.email}
+          onChange={(e) => set("email", e.target.value)} placeholder="nama@email.com" autoComplete="off" />
+
+        <Label req>Kata sandi sementara</Label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+          <input className="field" style={{ ...inputStyle, flex: 1 }} value={f.sandi}
+            onChange={(e) => set("sandi", e.target.value)} placeholder="minimal 6 karakter" autoComplete="off" />
+          <button className="btn" onClick={acakSandi}
+            style={{ background: C.greenSoft, color: C.green, padding: "0 14px", borderRadius: 11, fontSize: 12.5 }}>Acak</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>
+          Berikan kata sandi ini ke yang bersangkutan, lalu minta menggantinya lewat "Lupa kata sandi".
+        </div>
+
+        {galat && (
+          <div style={{ background: C.dangerSoft, color: C.danger, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, marginBottom: 14, display: "flex", gap: 7 }}>
+            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> {galat}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button className="btn" onClick={onClose} disabled={sibuk}
+            style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "10px 18px", borderRadius: 11 }}>Batal</button>
+          <button className="btn" onClick={kirim} disabled={sibuk}
+            style={{ background: sibuk ? C.border : C.green, color: "#fff", padding: "10px 20px", borderRadius: 11 }}>
+            {sibuk ? <Loader2 size={16} className="spin" /> : <Check size={16} />} {sibuk ? "Membuat…" : "Buat Akun"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ============================================================
+   KARTU SAYA — halaman pribadi untuk akun jamaah
+   ============================================================ */
+function KartuSayaPage({ saya, simpan, siap, akunSaya, pengguna, tg, pid, periodeAktif }) {
+  const [mode, setMode] = useState("kartu");   // kartu | profil
+  const [tulis, setTulis] = useState(false);
+  const [ubahCat, setUbahCat] = useState(null);
+  const [kirim, setKirim] = useState(null);    // {ok, teks}
+
+  if (!akunSaya?.jamaahId) {
+    return (
+      <div className="fade" style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 18, padding: "44px 22px", textAlign: "center" }}>
+        <ContactRound size={34} color={C.border} />
+        <p style={{ margin: "14px 0 4px", fontWeight: 700, fontSize: 15.5 }}>Akun belum terhubung ke data jamaah</p>
+        <p style={{ margin: "0 auto", fontSize: 13, color: C.muted, maxWidth: 380, lineHeight: 1.6 }}>
+          Mintalah pembimbing menghubungkan akun <strong>{pengguna.email}</strong> ke data jamaah Anda
+          lewat halaman Pengaturan Akun.
+        </p>
+      </div>
+    );
+  }
+
+  if (!siap) {
+    return <div style={{ textAlign: "center", padding: 50, color: C.muted, fontSize: 13 }}>
+      <Loader2 size={20} className="spin" color={C.green} /><div style={{ marginTop: 8 }}>Memuat data Anda…</div>
+    </div>;
+  }
+
+  if (!saya) {
+    return (
+      <div className="fade" style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 18, padding: "44px 22px", textAlign: "center" }}>
+        <AlertTriangle size={30} color={C.gold} />
+        <p style={{ margin: "14px 0 4px", fontWeight: 700 }}>Data jamaah tidak ditemukan</p>
+        <p style={{ margin: 0, fontSize: 13, color: C.muted }}>Data mungkin sudah dipindahkan. Hubungi pembimbing Anda.</p>
+      </div>
+    );
+  }
+
+  const catatan = [...(saya.catatanHarian || [])].sort((a, b) => (b.waktuISO || "").localeCompare(a.waktuISO || ""));
+  const terakhir = catatan[0];
+
+  // Menyimpan catatan + mengirim ke Telegram + mencatat ke riwayat
+  const simpanCatatan = async (c) => {
+    const lama = saya.catatanHarian || [];
+    const baru = c.id ? lama.map((x) => (x.id === c.id ? c : x)) : [...lama, { ...c, id: Date.now() }];
+    await simpan({ catatanHarian: baru });
+    setTulis(false); setUbahCat(null);
+
+    if (c.id) return;   // hanya catatan baru yang dikirim
+
+    const K = KONDISI[c.kondisi] || KONDISI.sehat;
+    const pesan = [
+      `📋 <b>CATATAN JAMAAH</b>`,
+      "━━━━━━━━━━━━━━",
+      periodeAktif ? `Periode: ${escHtml(periodeAktif.nama)}` : "",
+      `Jamaah: <b>${escHtml(saya.nama || "-")}</b>${saya.rombongan ? ` (Rmb ${escHtml(saya.rombongan)})` : ""}`,
+      `Kondisi: <b>${escHtml(K.label)}</b>`,
+      "",
+      c.isi ? escHtml(c.isi) : "",
+      [c.suhu && `Suhu: ${escHtml(c.suhu)}`, c.tensi && `Tensi: ${escHtml(c.tensi)}`, c.obat && `Obat: ${escHtml(c.obat)}`].filter(Boolean).join(" · "),
+      "",
+      `🕐 ${waktuLapWIB(c.waktuISO)} WIB · ${waktuLapAST(c.waktuISO)} AST`,
+      `<i>Dikirim sendiri oleh jamaah lewat aplikasi.</i>`,
+    ].filter(Boolean).join("\n");
+
+    const hasil = [];
+    if (tg?.token && tg?.chatId) {
+      try { await kirimTelegram(tg.token, tg.chatId, pesan); hasil.push("terkirim ke Telegram pembimbing"); }
+      catch (e) { hasil.push("gagal kirim Telegram: " + (e.message || "")); }
+    } else {
+      hasil.push("Telegram belum diatur pembimbing");
+    }
+
+    try {
+      await tambahDokumen(["periode", pid, "laporan"], {
+        id: Date.now(),
+        jenis: "Kondisi Jamaah",
+        judul: `Catatan mandiri — ${saya.nama || "Jamaah"}`,
+        isi: [
+          `Kondisi: ${K.label}`,
+          c.isi || "",
+          [c.suhu && `Suhu ${c.suhu}`, c.tensi && `Tensi ${c.tensi}`, c.obat && `Obat: ${c.obat}`].filter(Boolean).join(" · "),
+        ].filter(Boolean).join("\n"),
+        pencatat: `${saya.nama || "Jamaah"} (mandiri)`,
+        waktuISO: c.waktuISO,
+        status: tg?.token && tg?.chatId ? "terkirim" : "lokal",
+      });
+      hasil.push("tercatat di riwayat pembimbing");
+    } catch (e) {
+      hasil.push("gagal mencatat di riwayat");
+    }
+
+    setKirim({ ok: !hasil.some((h) => h.startsWith("gagal")), teks: "Catatan tersimpan — " + hasil.join(", ") + "." });
+  };
+
+  if (mode === "profil") {
+    return (
+      <JamaahForm
+        initial={saya}
+        list={[]}
+        onCancel={() => setMode("kartu")}
+        onSave={async (data) => {
+          // Catatan harian tidak ikut disunting dari form profil
+          const { catatanHarian, ...sisanya } = data;
+          await simpan({ ...sisanya, catatanHarian: saya.catatanHarian || [] });
+          setMode("kartu");
+        }} />
+    );
+  }
+
+  const K = terakhir && KONDISI[terakhir.kondisi] ? KONDISI[terakhir.kondisi] : null;
+
+  return (
+    <div className="fade">
+      {/* Kartu identitas */}
+      <div style={{ background: `linear-gradient(125deg, ${C.greenDeep}, ${C.green})`, borderRadius: 20, padding: 20, color: "#fff", marginBottom: 16, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", right: -26, top: -26, width: 120, height: 120, borderRadius: "50%", background: "#ffffff10" }} />
+        <div style={{ display: "flex", gap: 15, alignItems: "center", position: "relative", flexWrap: "wrap" }}>
+          <Avatar foto={saya.foto} nama={saya.nama} size={82} />
+          <div style={{ flex: 1, minWidth: 170 }}>
+            <div style={{ fontSize: 11, color: "#b9cdc0", letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 700 }}>Kartu Jamaah</div>
+            <div className="serif" style={{ fontSize: 22, fontWeight: 700, marginTop: 3, lineHeight: 1.2 }}>{saya.nama || "—"}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {saya.rombongan && <Badge bg="#ffffff26" color="#fff" icon={Users}>Rombongan {saya.rombongan}</Badge>}
+              {saya.usia && <Badge bg="#ffffff26" color="#fff">{saya.usia} tahun</Badge>}
+              {periodeAktif && <Badge bg="#ffffff26" color={C.goldSoft} icon={Moon}>{periodeAktif.nama}</Badge>}
+            </div>
+          </div>
+          <button className="btn" onClick={() => setMode("profil")}
+            style={{ background: "#ffffff22", color: "#fff", padding: "10px 16px", borderRadius: 11, fontSize: 13 }}>
+            <Pencil size={15} /> Ubah Profil
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginTop: 16, paddingTop: 15, borderTop: "1px solid #ffffff22" }}>
+          <KartuInfo label="No. paspor" isi={saya.noPaspor} />
+          <KartuInfo label="Telepon" isi={saya.telepon} />
+          <KartuInfo label="Golongan darah" isi={saya.golDarah} />
+          <KartuInfo label="Kontak keluarga" isi={saya.kontakDarurat} />
+        </div>
+      </div>
+
+      {kirim && (
+        <div style={{
+          background: kirim.ok ? C.greenSoft : C.goldSoft, color: kirim.ok ? C.green : C.goldDeep,
+          borderRadius: 12, padding: "11px 14px", marginBottom: 14, fontSize: 12.5, display: "flex", gap: 8, alignItems: "flex-start",
+        }}>
+          {kirim.ok ? <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: 1 }} /> : <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />}
+          <span style={{ flex: 1 }}>{kirim.teks}</span>
+          <button className="btn iconbtn" onClick={() => setKirim(null)} style={{ background: "transparent", padding: 2 }}><X size={14} /></button>
+        </div>
+      )}
+
+      {/* Kondisi terakhir */}
+      {K && (
+        <div style={{ background: K.latar, borderRadius: 15, padding: "14px 16px", marginBottom: 16, display: "flex", gap: 12, alignItems: "center", borderLeft: `4px solid ${K.warna}` }}>
+          <K.ikon size={22} color={K.warna} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: K.warna }}>Kondisi terakhir: {K.label}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+              {terakhir.tanggal ? tglRingkas(terakhir.tanggal) : "—"} · WIB {jamWIB(terakhir.waktuISO)} · AST {jamAST(terakhir.waktuISO)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Catatan harian */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, padding: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+              <NotebookPen size={18} color={C.green} /> Catatan & Kondisi Saya
+            </h3>
+            <p style={{ margin: "3px 0 0", fontSize: 12.5, color: C.muted }}>
+              Setiap catatan baru langsung diteruskan ke pembimbing.
+            </p>
+          </div>
+          <button className="btn" onClick={() => { setUbahCat(null); setTulis(true); }}
+            style={{ background: C.green, color: "#fff", padding: "9px 15px", borderRadius: 11, fontSize: 13 }}>
+            <Plus size={16} /> Tambah Catatan
+          </button>
+        </div>
+
+        <RiwayatCatatan j={saya}
+          onUbah={(c) => { setUbahCat(c); setTulis(true); }}
+          onHapus={async (id) => {
+            if (!window.confirm("Hapus catatan ini?")) return;
+            await simpan({ catatanHarian: (saya.catatanHarian || []).filter((c) => c.id !== id) });
+          }} />
+      </div>
+
+      <div style={{ background: C.bg, borderRadius: 13, padding: "13px 15px", marginTop: 16, fontSize: 12.5, color: C.muted, lineHeight: 1.6, display: "flex", gap: 9 }}>
+        <Send size={15} color={C.green} style={{ flexShrink: 0, marginTop: 2 }} />
+        <span>
+          Catatan yang Anda kirim akan muncul di grup Telegram pembimbing dan tersimpan di riwayat laporan.
+          Bila kondisi Anda mendesak, gunakan halaman <strong style={{ color: C.danger }}>Darurat</strong>.
+        </span>
+      </div>
+
+      {tulis && (
+        <CatatanHarianModal
+          awal={ubahCat}
+          namaPencatat={saya.nama || ""}
+          onClose={() => { setTulis(false); setUbahCat(null); }}
+          onSimpan={simpanCatatan} />
+      )}
+    </div>
+  );
+}
+
+function KartuInfo({ label, isi }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: "#b9cdc0", letterSpacing: ".05em", textTransform: "uppercase", fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 3, wordBreak: "break-word" }}>{isi || "—"}</div>
     </div>
   );
 }
