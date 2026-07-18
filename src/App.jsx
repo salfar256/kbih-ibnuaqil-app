@@ -27,7 +27,7 @@ const C = {
 };
 
 const STYLE = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Amiri:wght@400;700&display=swap');
 * { box-sizing: border-box; }
 .kbih-root { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: ${C.ink}; }
 .kbih-root ::selection { background: ${C.goldSoft}; }
@@ -50,6 +50,43 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: ${C.ink}
 @keyframes fade { from { opacity:0; transform: translateY(6px);} to {opacity:1; transform:none;} }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Tulisan Arab */
+.arab {
+  font-family: 'Arabic Typesetting', 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif;
+  line-height: 1.9;
+}
+
+/* Tata letak dasar */
+.grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 26px 22px 60px; }
+.hdr-wrap { max-width: 1160px; margin: 0 auto; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; position: relative; }
+.bus-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
+.kartu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+
+/* --- Penyesuaian layar HP --- */
+@media (max-width: 720px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .wrap { padding: 18px 13px 48px; }
+  .hdr-wrap { padding: 14px 13px; gap: 12px; }
+  .bus-layout { grid-template-columns: 1fr; }
+  .kartu-grid { grid-template-columns: 1fr; }
+  .jam-blok { gap: 14px !important; }
+  .jam-angka { font-size: 20px !important; }
+  .jam-item { min-width: 116px !important; }
+  .judul-hal { font-size: 20px !important; }
+  .kop-nama { font-size: 18px !important; }
+  .kop-tagline { font-size: 11px !important; }
+  .kop-logo { width: 44px !important; height: 44px !important; }
+  .navtab { padding: 12px 12px !important; font-size: 13.5px; }
+  .kartu-pad { padding: 16px !important; }
+  .sembunyi-hp { display: none !important; }
+}
+@media (max-width: 400px) {
+  .jam-blok { gap: 10px !important; }
+  .jam-angka { font-size: 18px !important; }
+  .jam-item { min-width: 100px !important; }
+}
 @media (prefers-reduced-motion: reduce) { *, .fade { animation: none !important; } }
 `;
 
@@ -149,19 +186,19 @@ function DualClock() {
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
   const Item = ({ label, tz, accent }) => (
-    <div style={{ minWidth: 146 }}>
+    <div className="jam-item" style={{ minWidth: 146 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
         <span style={{ width: 7, height: 7, borderRadius: 99, background: accent }} />
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", color: "#d7e4da", textTransform: "uppercase" }}>{label}</span>
+        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".05em", color: "#d7e4da", textTransform: "uppercase" }}>{label}</span>
       </div>
-      <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, color: "#fff", fontVariantNumeric: "tabular-nums" }}>{idTime(tz, now)}</div>
-      <div style={{ fontSize: 11, color: "#b9cdc0", marginTop: 3 }}>{idDate(tz, now)}</div>
+      <div className="jam-angka" style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, color: "#fff", fontVariantNumeric: "tabular-nums" }}>{idTime(tz, now)}</div>
+      <div style={{ fontSize: 10.5, color: "#b9cdc0", marginTop: 3 }}>{idDate(tz, now)}</div>
     </div>
   );
   return (
-    <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+    <div className="jam-blok" style={{ display: "flex", gap: 24, alignItems: "center" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Moon size={16} color={C.gold} />
+        <Moon size={16} color={C.gold} className="sembunyi-hp" />
         <Item label="Makkah · AST" tz="Asia/Riyadh" accent={C.gold} />
       </div>
       <div style={{ width: 1, height: 44, background: "#ffffff22" }} />
@@ -170,7 +207,7 @@ function DualClock() {
   );
 }
 function Avatar({ foto, nama, size = 48 }) {
-  if (foto) return <img src={foto} alt={nama} style={{ width: size, height: size, borderRadius: 14, objectFit: "cover", border: `2px solid ${C.border}` }} />;
+  if (foto) return <img src={foto} alt={nama} style={{ width: size, height: size, borderRadius: 14, objectFit: "cover", objectPosition: "center top", border: `2px solid ${C.border}` }} />;
   return <div style={{ width: size, height: size, borderRadius: 14, background: C.greenSoft, color: C.green, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: size * 0.34, border: `2px solid ${C.green}22` }}>{inisial(nama)}</div>;
 }
 function Badge({ children, bg, color, icon: Icon }) {
@@ -191,6 +228,15 @@ function Section({ title }) {
   return <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "22px 0 14px" }}><span style={{ width: 4, height: 16, background: C.gold, borderRadius: 4 }} /><span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: C.ink }}>{title}</span></div>;
 }
 const inputStyle = { width: "100%", padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 11, background: "#fff" };
+
+/* Didefinisikan di tingkat modul — kalau ditaruh di dalam komponen,
+   React membuat ulang kotak isian tiap ketikan dan keyboard tertutup. */
+const Label = ({ children, req }) => (
+  <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
+    {children}{req && <span style={{ color: C.danger }}> *</span>}
+  </label>
+);
+const Grid = ({ children }) => <div className="grid2">{children}</div>;
 function Modal({ children, onClose, width = 460 }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#0a271799", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 50 }}>
@@ -199,22 +245,191 @@ function Modal({ children, onClose, width = 460 }) {
   );
 }
 
+/* ---------- editor gambar: atur ukuran & posisi ---------- */
+const RASIO = {
+  potret:  { label: "Potret 3:4",  w: 3, h: 4 },
+  persegi: { label: "Persegi 1:1", w: 1, h: 1 },
+  lanskap: { label: "Lanskap 4:3", w: 4, h: 3 },
+};
+const LEBAR_PRATINJAU = 262;
+
+function EditorGambar({ sumber, rasioAwal = "potret", judul = "Atur Foto", onBatal, onSelesai }) {
+  const [rasio, setRasio] = useState(rasioAwal);
+  const [zoom, setZoom] = useState(1);
+  const [geser, setGeser] = useState({ x: 0, y: 0 });
+  const [gbr, setGbr] = useState(null);
+  const [sibuk, setSibuk] = useState(false);
+  const seret = useRef(null);
+
+  useEffect(() => {
+    const i = new Image();
+    i.onload = () => setGbr(i);
+    i.src = sumber;
+  }, [sumber]);
+
+  const R = RASIO[rasio];
+  const TINGGI_PRATINJAU = Math.round((LEBAR_PRATINJAU * R.h) / R.w);
+
+  useEffect(() => { setGeser({ x: 0, y: 0 }); setZoom(1); }, [rasio]);
+
+  if (!gbr) {
+    return (
+      <Modal onClose={onBatal} width={360}>
+        <div style={{ padding: 40, textAlign: "center", color: C.muted, fontSize: 13 }}>
+          <Loader2 size={22} className="spin" color={C.green} />
+          <div style={{ marginTop: 10 }}>Memuat gambar…</div>
+        </div>
+      </Modal>
+    );
+  }
+
+  const skalaDasar = Math.max(LEBAR_PRATINJAU / gbr.width, TINGGI_PRATINJAU / gbr.height);
+  const skala = skalaDasar * zoom;
+  const lebarTampil = gbr.width * skala;
+  const tinggiTampil = gbr.height * skala;
+  const batasX = Math.max(0, (lebarTampil - LEBAR_PRATINJAU) / 2);
+  const batasY = Math.max(0, (tinggiTampil - TINGGI_PRATINJAU) / 2);
+  const jepit = (n, b) => Math.max(-b, Math.min(b, n));
+  const gx = jepit(geser.x, batasX);
+  const gy = jepit(geser.y, batasY);
+
+  const mulaiSeret = (e) => {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    seret.current = { px: e.clientX, py: e.clientY, ax: gx, ay: gy };
+  };
+  const jalanSeret = (e) => {
+    if (!seret.current) return;
+    const d = seret.current;
+    setGeser({ x: jepit(d.ax + (e.clientX - d.px), batasX), y: jepit(d.ay + (e.clientY - d.py), batasY) });
+  };
+  const akhirSeret = () => { seret.current = null; };
+
+  const simpan = async () => {
+    setSibuk(true);
+    try {
+      // Ukuran hasil akhir — sisi terpanjang 1000 px
+      const panjang = 1000;
+      const keluarW = R.w >= R.h ? panjang : Math.round((panjang * R.w) / R.h);
+      const keluarH = R.h >= R.w ? panjang : Math.round((panjang * R.h) / R.w);
+
+      const sw = LEBAR_PRATINJAU / skala;
+      const sh = TINGGI_PRATINJAU / skala;
+      const cx = gbr.width / 2 - gx / skala;
+      const cy = gbr.height / 2 - gy / skala;
+      let sx = Math.max(0, Math.min(gbr.width - sw, cx - sw / 2));
+      let sy = Math.max(0, Math.min(gbr.height - sh, cy - sh / 2));
+
+      const kanvas = document.createElement("canvas");
+      kanvas.width = keluarW; kanvas.height = keluarH;
+      const ctx = kanvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, keluarW, keluarH);
+      ctx.drawImage(gbr, sx, sy, sw, sh, 0, 0, keluarW, keluarH);
+
+      let mutu = 0.75;
+      let hasil = kanvas.toDataURL("image/jpeg", mutu);
+      while (hasil.length > 300 * 1024 && mutu > 0.35) {
+        mutu -= 0.1;
+        hasil = kanvas.toDataURL("image/jpeg", mutu);
+      }
+      onSelesai({
+        nama: "foto.jpg",
+        tipe: "image/jpeg",
+        ukuran: Math.round((hasil.length * 3) / 4),
+        data: hasil,
+      });
+    } catch (e) {
+      alert("Gagal memproses gambar. Coba foto lain.");
+    }
+    setSibuk(false);
+  };
+
+  return (
+    <Modal onClose={onBatal} width={360}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>{judul}</h3>
+          <button className="btn iconbtn" onClick={onBatal} style={{ background: C.bg, padding: 7, borderRadius: 9 }}><X size={16} /></button>
+        </div>
+
+        {/* pilihan bentuk */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, justifyContent: "center" }}>
+          {Object.entries(RASIO).map(([k, v]) => {
+            const on = rasio === k;
+            return (
+              <button key={k} className="btn" onClick={() => setRasio(k)}
+                style={{ flex: 1, justifyContent: "center", background: on ? C.green : "#fff", color: on ? "#fff" : C.muted, border: `1px solid ${on ? C.green : C.border}`, padding: "7px 6px", borderRadius: 10, fontSize: 11.5 }}>
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* area pratinjau */}
+        <div
+          onPointerDown={mulaiSeret} onPointerMove={jalanSeret}
+          onPointerUp={akhirSeret} onPointerCancel={akhirSeret} onPointerLeave={akhirSeret}
+          style={{
+            width: LEBAR_PRATINJAU, height: TINGGI_PRATINJAU, margin: "0 auto",
+            overflow: "hidden", position: "relative", borderRadius: 14,
+            background: "#111", cursor: "grab", touchAction: "none",
+            border: `2px solid ${C.border}`,
+          }}>
+          <img src={sumber} alt="" draggable={false}
+            style={{
+              position: "absolute", left: "50%", top: "50%",
+              width: lebarTampil, height: tinggiTampil, maxWidth: "none",
+              transform: `translate(calc(-50% + ${gx}px), calc(-50% + ${gy}px))`,
+              userSelect: "none", pointerEvents: "none",
+            }} />
+        </div>
+        <div style={{ textAlign: "center", fontSize: 11.5, color: C.muted, marginTop: 8 }}>
+          Seret gambar untuk menggeser posisi
+        </div>
+
+        {/* pembesaran */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+          <ImagePlus size={16} color={C.muted} />
+          <input type="range" min="1" max="3" step="0.02" value={zoom}
+            onChange={(e) => setZoom(parseFloat(e.target.value))}
+            style={{ flex: 1, accentColor: C.green }} />
+          <span style={{ fontSize: 12, color: C.muted, minWidth: 34, textAlign: "right" }}>{zoom.toFixed(1)}×</span>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
+          <button className="btn" onClick={onBatal} style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "10px 18px", borderRadius: 11 }}>Batal</button>
+          <button className="btn" onClick={simpan} disabled={sibuk} style={{ background: C.green, color: "#fff", padding: "10px 20px", borderRadius: 11 }}>
+            {sibuk ? <Loader2 size={16} className="spin" /> : <Check size={16} />} {sibuk ? "Memproses…" : "Gunakan"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* ---------- unggah gambar ---------- */
-function UploadGambar({ nilai, onChange, tinggi = 130, label = "Unggah gambar" }) {
+function UploadGambar({ nilai, onChange, tinggi = 130, label = "Unggah gambar", rasio = "potret" }) {
   const ref = useRef(null);
   const [sibuk, setSibuk] = useState(false);
-  const pilih = async (e) => {
+  const [mentah, setMentah] = useState(null);
+  const pilih = (e) => {
     const file = e.target.files?.[0]; if (!file) return;
     if (!file.type.startsWith("image/")) return alert("Pilih berkas gambar (JPG/PNG).");
-    if (file.size > 3 * 1024 * 1024) return alert("Ukuran gambar maksimal 3 MB.");
+    if (file.size > 12 * 1024 * 1024) return alert("Ukuran gambar maksimal 12 MB.");
     setSibuk(true);
-    try { onChange(await bacaBerkas(file)); }
-    catch (err) { alert("Gagal mengunggah: " + pesanGalat(err)); }
-    setSibuk(false);
+    const rd = new FileReader();
+    rd.onload = () => { setMentah(rd.result); setSibuk(false); };
+    rd.onerror = () => { alert("Gagal membaca gambar."); setSibuk(false); };
+    rd.readAsDataURL(file);
     e.target.value = "";
   };
   return (
     <div>
+      {mentah && (
+        <EditorGambar sumber={mentah} rasioAwal={rasio} judul="Atur Gambar"
+          onBatal={() => setMentah(null)}
+          onSelesai={(hasil) => { onChange(hasil); setMentah(null); }} />
+      )}
       <input ref={ref} type="file" accept="image/*" onChange={pilih} style={{ display: "none" }} />
       {nilai ? (
         <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}` }}>
@@ -226,7 +441,7 @@ function UploadGambar({ nilai, onChange, tinggi = 130, label = "Unggah gambar" }
         <button className="btn" onClick={() => ref.current?.click()} disabled={sibuk} style={{ width: "100%", justifyContent: "center", flexDirection: "column", gap: 6, padding: "20px 14px", borderRadius: 12, border: `1.5px dashed ${C.border}`, background: C.bg, color: C.muted }}>
           {sibuk ? <Loader2 size={22} color={C.green} className="spin" /> : <ImagePlus size={22} color={C.green} />}
           <span style={{ fontSize: 13 }}>{sibuk ? "Mengunggah…" : label}</span>
-          <span style={{ fontSize: 11, fontWeight: 500 }}>JPG / PNG, maks. 3 MB</span>
+          <span style={{ fontSize: 11, fontWeight: 500 }}>Bisa diatur ukuran & posisinya</span>
         </button>
       )}
     </div>
@@ -339,21 +554,21 @@ function AppInti({ pengguna }) {
 
       <header style={{ background: `linear-gradient(115deg, ${C.greenDeep} 0%, ${C.green} 62%, #12693e 100%)`, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, opacity: .14, backgroundImage: "radial-gradient(circle at 12% 20%, #ffffff33 0 2px, transparent 2px), radial-gradient(circle at 80% 60%, #ffffff22 0 2px, transparent 2px)", backgroundSize: "44px 44px" }} />
-        <div style={{ maxWidth: 1160, margin: "0 auto", padding: "18px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", position: "relative" }}>
+        <div className="hdr-wrap">
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ background: "#fff", borderRadius: 16, padding: 6, boxShadow: "0 6px 18px rgba(0,0,0,.18)" }}>
-              <img src={LOGO} alt="KBIH Ibnu Aqil" style={{ width: 56, height: 56, display: "block", borderRadius: 10 }} />
+              <img src={LOGO} alt="KBIH Ibnu Aqil" className="kop-logo" style={{ width: 56, height: 56, display: "block", borderRadius: 10 }} />
             </div>
             <div>
-              <div className="serif" style={{ color: "#fff", fontSize: 22, fontWeight: 700 }}>KBIH Ibnu Aqil</div>
-              <div style={{ color: C.goldSoft, fontSize: 12.5, fontWeight: 500 }}>Melayani dengan Ikhlas, Membimbing dengan Amanah</div>
+              <div className="serif kop-nama" style={{ color: "#fff", fontSize: 22, fontWeight: 700 }}>KBIH Ibnu Aqil</div>
+              <div className="kop-tagline" style={{ color: C.goldSoft, fontSize: 12.5, fontWeight: 500 }}>Melayani dengan Ikhlas, Membimbing dengan Amanah</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             <DualClock />
             <div style={{ display: "flex", alignItems: "center", gap: 9, paddingLeft: 16, borderLeft: "1px solid #ffffff22" }}>
               <div style={{ textAlign: "right", lineHeight: 1.3 }}>
-                <div style={{ fontSize: 11, color: "#b9cdc0" }}>Masuk sebagai</div>
+                <div className="sembunyi-hp" style={{ fontSize: 11, color: "#b9cdc0" }}>Masuk sebagai</div>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pengguna.email}</div>
               </div>
               <button className="btn" onClick={() => { if (window.confirm("Keluar dari aplikasi?")) keluar(); }} title="Keluar"
@@ -379,7 +594,7 @@ function AppInti({ pengguna }) {
         </div>
       </div>
 
-      <main style={{ maxWidth: 1160, margin: "0 auto", padding: "26px 22px 60px" }}>
+      <main className="wrap">
         {page === "jamaah" && <JamaahPage list={list} setList={setList} />}
         {page === "bus" && <BusPage list={list} seats={seats} setSeats={setSeats} byId={byId} />}
         {page === "agenda" && <AgendaPage agenda={agenda} setAgenda={setAgenda} list={list} absen={absen} setAbsen={setAbsen} />}
@@ -448,7 +663,7 @@ function JamaahPage({ list, setList }) {
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <div>
-          <h2 className="serif" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Daftar Jamaah</h2>
+          <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Daftar Jamaah</h2>
           <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Kelola profil dan kebutuhan tiap jamaah bimbingan.</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -465,7 +680,7 @@ function JamaahPage({ list, setList }) {
           <Users size={32} color={C.border} /><p style={{ margin: "12px 0 0", fontWeight: 600 }}>Belum ada jamaah yang cocok.</p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: 14 }}>
+        <div className="kartu-grid">
           {filtered.map((j) => {
             const u = labelUsia(hitungUsia(j.tanggalLahir));
             const relCount = (j.relasi || []).filter((r) => list.some((x) => x.id === Number(r.id))).length;
@@ -579,20 +794,21 @@ function JamaahForm({ initial, list, onCancel, onSave }) {
   const addRel = () => setF((s) => ({ ...s, relasi: [...(s.relasi || []), { id: "", hubungan: "Anak" }] }));
   const delRel = (i) => setF((s) => ({ ...s, relasi: (s.relasi || []).filter((_, x) => x !== i) }));
   const [fotoSibuk, setFotoSibuk] = useState(false);
-  const pickPhoto = async (e) => {
+  const [fotoMentah, setFotoMentah] = useState(null);
+  const pickPhoto = (e) => {
     const file = e.target.files?.[0]; if (!file) return;
     if (!file.type.startsWith("image/")) return alert("Pilih berkas gambar.");
-    if (file.size > 3 * 1024 * 1024) return alert("Ukuran foto maksimal 3 MB.");
+    if (file.size > 12 * 1024 * 1024) return alert("Ukuran foto maksimal 12 MB.");
     setFotoSibuk(true);
-    try { const b = await kecilkanGambar(file, 600, 0.72); set("foto", b.data); }
-    catch (err) { alert("Gagal mengunggah foto: " + pesanGalat(err)); }
-    setFotoSibuk(false); e.target.value = "";
+    const rd = new FileReader();
+    rd.onload = () => { setFotoMentah(rd.result); setFotoSibuk(false); };
+    rd.onerror = () => { alert("Gagal membaca foto."); setFotoSibuk(false); };
+    rd.readAsDataURL(file);
+    e.target.value = "";
   };
   const y = hitungUsia(f.tanggalLahir);
   const canSave = f.nama.trim().length > 0;
   const others = list.filter((j) => j.id !== f.id);
-  const Label = ({ children, req }) => <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{children} {req && <span style={{ color: C.danger }}>*</span>}</label>;
-  const Grid = ({ children }) => <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>{children}</div>;
 
   return (
     <div className="fade">
@@ -601,6 +817,11 @@ function JamaahForm({ initial, list, onCancel, onSave }) {
         <h2 className="serif" style={{ margin: "0 0 4px", fontSize: 23, fontWeight: 600 }}>{initial ? "Ubah Data Jamaah" : "Tambah Jamaah Baru"}</h2>
         <p style={{ margin: "0 0 22px", fontSize: 13, color: C.muted }}>Lengkapi profil dan kebutuhan khusus jamaah.</p>
 
+        {fotoMentah && (
+          <EditorGambar sumber={fotoMentah} rasioAwal="potret" judul="Atur Foto Jamaah"
+            onBatal={() => setFotoMentah(null)}
+            onSelesai={(hasil) => { set("foto", hasil.data); setFotoMentah(null); }} />
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
           <div style={{ position: "relative" }}>
             <Avatar foto={f.foto} nama={f.nama || "?"} size={84} />
@@ -609,7 +830,7 @@ function JamaahForm({ initial, list, onCancel, onSave }) {
           <div>
             <input ref={fileRef} type="file" accept="image/*" onChange={pickPhoto} style={{ display: "none" }} />
             <button className="btn" onClick={() => fileRef.current?.click()} disabled={fotoSibuk} style={{ background: C.greenSoft, color: C.green, padding: "9px 15px", borderRadius: 11 }}>{fotoSibuk ? <Loader2 size={16} className="spin" /> : <Camera size={16} />} {fotoSibuk ? "Mengunggah…" : f.foto ? "Ganti foto" : "Unggah foto"}</button>
-            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>Format gambar (JPG/PNG). Wajah terlihat jelas untuk memudahkan pengenalan.</div>
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>Setelah dipilih, foto bisa digeser & diperbesar. Bentuk potret disarankan.</div>
           </div>
         </div>
 
@@ -677,7 +898,7 @@ function JamaahForm({ initial, list, onCancel, onSave }) {
 /* ============================================================
    BUS PAGE  — klik untuk isi, drag & drop untuk tukar
    ============================================================ */
-const BUS_ROWS = 11;
+const BUS_ROWS = 15;
 const COLS = ["A", "B", "C", "D"];
 const allSeatIds = () => { const a = []; for (let r = 1; r <= BUS_ROWS; r++) COLS.forEach((c) => a.push(`${r}${c}`)); return a; };
 
@@ -715,7 +936,7 @@ function BusPage({ list, seats, setSeats, byId }) {
         onClick={() => setPicker(id)}
         title={j ? j.nama : `Kursi ${id} (kosong)`}
         style={{
-          width: 62, height: 58, borderRadius: 12, cursor: "pointer",
+          width: 58, height: 54, borderRadius: 11, cursor: "pointer", flexShrink: 0,
           background: j ? C.green : "#fff", color: j ? "#fff" : C.muted,
           border: `1.5px solid ${j ? C.greenDeep : C.border}`,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -736,11 +957,11 @@ function BusPage({ list, seats, setSeats, byId }) {
   return (
     <div className="fade">
       <div style={{ marginBottom: 16 }}>
-        <h2 className="serif" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Denah Kursi Bis</h2>
+        <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Denah Kursi Bis</h2>
         <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Klik kursi untuk menempatkan jamaah. Seret (drag) kursi untuk menukar posisi. {Object.keys(seats).length}/{seatIds.length} kursi terisi.</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 260px", gap: 20, alignItems: "start" }}>
+      <div className="bus-layout">
         {/* BUS */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 22, padding: "20px 18px", overflowX: "auto" }} className="kbih-scroll">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 6px 14px", borderBottom: `1px dashed ${C.border}`, marginBottom: 14, minWidth: 320 }}>
@@ -751,7 +972,7 @@ function BusPage({ list, seats, setSeats, byId }) {
             {Array.from({ length: BUS_ROWS }, (_, r) => r + 1).map((r) => (
               <div key={r} style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
                 <Seat id={`${r}A`} /><Seat id={`${r}B`} />
-                <div style={{ width: 26, textAlign: "center", fontSize: 10, color: C.border, fontWeight: 700 }}>{r}</div>
+                <div style={{ width: 22, textAlign: "center", fontSize: 10, color: C.border, fontWeight: 700, flexShrink: 0 }}>{r}</div>
                 <Seat id={`${r}C`} /><Seat id={`${r}D`} />
               </div>
             ))}
@@ -839,7 +1060,7 @@ function AgendaPage({ agenda, setAgenda, list, absen, setAbsen }) {
   return (
     <div className="fade">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div><h2 className="serif" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Agenda Perjalanan</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Jadwal kegiatan selama bimbingan & di tanah suci.</p></div>
+        <div><h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Agenda Perjalanan</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Jadwal kegiatan selama bimbingan & di tanah suci.</p></div>
         <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}><Plus size={18} /> Tambah Agenda</button>
       </div>
 
@@ -892,7 +1113,6 @@ function AgendaForm({ initial, onCancel, onSave }) {
   const [f, setF] = useState(initial || { tanggal: "", waktu: "", judul: "", lokasi: "", keterangan: "", gambar: null, materi: null });
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const canSave = f.judul.trim() && f.tanggal;
-  const Label = ({ children }) => <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{children}</label>;
 
   return (
     <div className="fade">
@@ -991,7 +1211,7 @@ function AbsensiPage({ agenda, list, absen, setAbsen }) {
   return (
     <div className="fade">
       <div style={{ marginBottom: 18 }}>
-        <h2 className="serif" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Rekap Absensi</h2>
+        <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Rekap Absensi</h2>
         <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Ringkasan kehadiran seluruh jamaah di tiap agenda. Klik nama agenda untuk mengisi absensi.</p>
       </div>
 
@@ -1077,7 +1297,7 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
   return (
     <div className="fade">
       <div style={{ marginBottom: 18 }}>
-        <h2 className="serif" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Lokasi, Jarak & Arah</h2>
+        <h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Lokasi, Jarak & Arah</h2>
         <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Jarak dan arah dihitung dari posisi HP Anda saat ini menuju tiap titik.</p>
       </div>
 
@@ -1108,7 +1328,7 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
       {missingEnriched.length === 0 ? (
         <div style={{ fontSize: 12.5, color: C.muted, background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 24 }}>Tidak ada jamaah yang ditandai tersesat saat ini. Alhamdulillah.</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 24 }}>
+        <div className="kartu-grid" style={{ marginBottom: 24 }}>
           {missingEnriched.map((m) => (
             <TitikCard key={m.id} pos={pos} lat={m.lat} lng={m.lng} nama={m.jamaah.nama} accent={C.danger} accentBg={C.dangerSoft}
               icon={AlertTriangle} avatarFoto={m.jamaah.foto}
@@ -1133,7 +1353,7 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
           Belum ada titik kumpul. Tekan <strong>Tambah</strong> saat Anda berdiri di lokasi kumpul agar koordinatnya tersimpan tepat.
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 24 }}>
+        <div className="kartu-grid" style={{ marginBottom: 24 }}>
           {titikKumpul.map((t) => (
             <TitikCard key={t.id} pos={pos} lat={t.lat} lng={t.lng} nama={t.nama} catatan={t.catatan} gambar={t.gambar} accent={C.green} accentBg={C.greenSoft} icon={Flag}
               footer={<button className="btn" onClick={() => setTitikKumpul((s) => s.filter((x) => x.id !== t.id))} style={{ marginTop: 10, background: C.bg, color: C.muted, padding: "6px 11px", borderRadius: 9, fontSize: 11.5 }}><Trash2 size={13} /> Hapus</button>} />
@@ -1146,7 +1366,7 @@ function LokasiPage({ list, titikPenting, setTitikPenting, titikKumpul, setTitik
         <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: C.goldDeep }}><Landmark size={16} /> Lokasi Penting</span>
         <button className="btn" onClick={() => setModal("penting")} style={{ background: C.goldSoft, color: C.goldDeep, padding: "7px 13px", borderRadius: 10, fontSize: 12.5 }}><Plus size={15} /> Tambah</button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+      <div className="kartu-grid">
         {titikPenting.map((t) => (
           <TitikCard key={t.id} pos={pos} lat={t.lat} lng={t.lng} nama={t.nama} catatan={t.catatan} gambar={t.gambar} accent={C.goldDeep} accentBg={C.goldSoft} icon={Landmark}
             footer={<button className="btn" onClick={() => setTitikPenting((s) => s.filter((x) => x.id !== t.id))} style={{ marginTop: 10, background: C.bg, color: C.muted, padding: "6px 11px", borderRadius: 9, fontSize: 11.5 }}><Trash2 size={13} /> Hapus</button>} />
@@ -1370,7 +1590,7 @@ function LaporanPage({ laporan, setLaporan, tg, setTg, agenda, list, absen, miss
   return (
     <div className="fade">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div><h2 className="serif" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Laporan & Riwayat</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Catat laporan kegiatan dan kirim ke grup/channel Telegram lewat bot.</p></div>
+        <div><h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Laporan & Riwayat</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Catat laporan kegiatan dan kirim ke grup/channel Telegram lewat bot.</p></div>
         <button className="btn" onClick={() => setMode("form")} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}><Plus size={18} /> Buat Laporan</button>
       </div>
 
@@ -1461,7 +1681,6 @@ function TelegramConfig({ tg, setTg }) {
     catch (e) { setTestMsg("Gagal: " + e.message); }
     setTesting(false);
   };
-  const Label = ({ children }) => <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{children}</label>;
 
   return (
     <div style={{ padding: "4px 16px 18px", borderTop: `1px solid ${C.border}` }}>
@@ -1511,7 +1730,6 @@ function LaporanForm({ tg, terkonfigurasi, agenda, list, absen, missing, onCance
   const genRingkasan = () => { const lansia = list.filter((j) => (hitungUsia(j.tanggalLahir) ?? 0) >= 60).length; const kr = list.filter((j) => j.kursiRoda).length; sisip(`Ringkasan jamaah:\n- Total jamaah: ${list.length}\n- Lansia (60+): ${lansia}\n- Pengguna kursi roda: ${kr}`); };
   const genTersesat = () => { if (!missing.length) return sisip("Tidak ada jamaah yang ditandai tersesat."); sisip("Jamaah tersesat / belum kumpul:\n" + missing.map((m) => { const j = list.find((x) => x.id === m.jamaahId); return `- ${j ? j.nama : "?"}${m.catatan ? ` (${m.catatan})` : ""}`; }).join("\n")); };
   const genAbsensi = () => { const ag = agenda.find((a) => a.id === Number(agSel)); if (!ag) return; const rec = absen[ag.id] || {}; const grp = (st) => list.filter((j) => rec[j.id] === st).map((j) => j.nama); const h = grp("hadir"), iz = grp("izin"), t = grp("tidak"); sisip([`Absensi — ${ag.judul} (${tglRingkas(ag.tanggal)} ${ag.waktu || ""}):`, `Hadir (${h.length}): ${h.join(", ") || "-"}`, `Izin (${iz.length}): ${iz.join(", ") || "-"}`, `Tidak hadir (${t.length}): ${t.join(", ") || "-"}`].join("\n")); };
-  const Label = ({ children }) => <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{children}</label>;
 
   return (
     <div className="fade">
@@ -1589,7 +1807,7 @@ function DoaPage({ doa, setDoa }) {
   return (
     <div className="fade">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-        <div><h2 className="serif" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Kumpulan Doa</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Panduan doa & bacaan manasik untuk pembimbing dan jamaah.</p></div>
+        <div><h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Kumpulan Doa</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Panduan doa & bacaan manasik untuk pembimbing dan jamaah.</p></div>
         <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}><Plus size={18} /> Tambah Doa</button>
       </div>
 
@@ -1631,7 +1849,7 @@ function DoaPage({ doa, setDoa }) {
               </div>
 
               {d.arab && (
-                <div dir="rtl" lang="ar" style={{ fontSize: 25, lineHeight: 2, color: C.ink, background: C.greenSoft, borderRadius: 12, padding: "16px 18px", marginBottom: 10, fontFamily: "'Traditional Arabic','Amiri','Scheherazade New',serif" }}>
+                <div dir="rtl" lang="ar" className="arab" style={{ fontSize: 34, color: C.ink, background: C.greenSoft, borderRadius: 12, padding: "18px 18px 14px", marginBottom: 10 }}>
                   {d.arab}
                 </div>
               )}
@@ -1655,7 +1873,6 @@ function DoaForm({ initial, kategoriAda, onCancel, onSave }) {
   const [f, setF] = useState(initial || { kategori: "", judul: "", arab: "", latin: "", arti: "", catatan: "", berkas: null });
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const canSave = f.judul.trim().length > 0;
-  const Label = ({ children, req }) => <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{children} {req && <span style={{ color: C.danger }}>*</span>}</label>;
 
   return (
     <div className="fade">
@@ -1672,7 +1889,7 @@ function DoaForm({ initial, kategoriAda, onCancel, onSave }) {
           <div><Label req>Judul doa</Label><input className="field" style={inputStyle} value={f.judul} onChange={(e) => set("judul", e.target.value)} placeholder="cth. Doa Masuk Masjid" /></div>
           <div style={{ gridColumn: "1 / -1" }}>
             <Label>Teks Arab</Label>
-            <textarea className="field" dir="rtl" lang="ar" rows={3} style={{ ...inputStyle, resize: "vertical", fontSize: 20, lineHeight: 1.9 }} value={f.arab} onChange={(e) => set("arab", e.target.value)} placeholder="اللَّهُمَّ ..." />
+            <textarea className="field arab" dir="rtl" lang="ar" rows={3} style={{ ...inputStyle, resize: "vertical", fontSize: 28 }} value={f.arab} onChange={(e) => set("arab", e.target.value)} placeholder="اللَّهُمَّ ..." />
           </div>
           <div style={{ gridColumn: "1 / -1" }}><Label>Bacaan latin</Label><textarea className="field" rows={2} style={{ ...inputStyle, resize: "vertical" }} value={f.latin} onChange={(e) => set("latin", e.target.value)} placeholder="Allahumma…" /></div>
           <div style={{ gridColumn: "1 / -1" }}><Label>Arti / terjemahan</Label><textarea className="field" rows={2} style={{ ...inputStyle, resize: "vertical" }} value={f.arti} onChange={(e) => set("arti", e.target.value)} placeholder="Ya Allah…" /></div>
