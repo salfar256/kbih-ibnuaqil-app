@@ -67,7 +67,11 @@ service cloud.firestore {
       match /data/kursi { allow read: if aktif(); allow write: if pembimbing(); }
       match /data/hotel { allow read: if aktif(); allow write: if pembimbing(); }
 
-      // Absensi dan titik lokasi: pembimbing saja
+      // Titik kumpul & lokasi penting: boleh dilihat jamaah
+      match /titikKumpul/{idIsi}  { allow read: if aktif(); allow write: if pembimbing(); }
+      match /titikPenting/{idIsi} { allow read: if aktif(); allow write: if pembimbing(); }
+
+      // Absensi: pembimbing saja
       match /{koleksi}/{idIsi} {
         allow read, write: if pembimbing();
       }
