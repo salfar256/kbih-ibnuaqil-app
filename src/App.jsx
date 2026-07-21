@@ -14,6 +14,7 @@ import {
   ArrowRightLeft, Home, Map as MapIcon, Route, HeartPulse, NotebookPen,
   Activity, Thermometer, Smile, Settings, ShieldCheck, ShieldOff, KeyRound,
   UserCog, Mail, CircleSlash, ContactRound, Lock, Hotel, DoorOpen, BedDouble,
+  Upload, FileSpreadsheet, FileDown, Siren,
 } from "lucide-react";
 
 /* ============================================================
@@ -748,7 +749,8 @@ function AppInti({ pengguna }) {
         {page === "akun" && <PengaturanPage pengguna={pengguna} akunSaya={akunSaya} list={list} pid={pid} periodeAktif={periodeAktif} />}
         {page === "kartuku" && (
           <KartuSayaPage saya={sayaJamaah} simpan={simpanSayaJamaah} siap={siapSaya}
-            akunSaya={akunSaya} pengguna={pengguna} tg={tg} pid={pid} periodeAktif={periodeAktif} />
+            akunSaya={akunSaya} pengguna={pengguna} tg={tg} pid={pid} periodeAktif={periodeAktif} hotel={hotel}
+            onDarurat={() => setPage("darurat")} />
         )}
         {page === "jamaah" && <JamaahPage list={list} setList={setList} pengguna={pengguna} namaSaya={namaSaya} />}
         {page === "kontak" && <KontakPage list={bolehKelola ? list : direktori} bolehKelola={bolehKelola} />}
@@ -1306,10 +1308,12 @@ function BusPage({ list, seats, setSeats, byId, bolehKelola = true }) {
   const [picker, setPicker] = useState(null); // seatId being assigned
 
   const seatIds = allSeatIds();
-  const seated = new Set(Object.values(seats).filter(Boolean).map(Number));
-  const pool = list.filter((j) => !seated.has(j.id));
+  // ID bisa berupa angka (data pembimbing) atau teks (direktori jamaah),
+  // jadi semua perbandingan disamakan sebagai teks.
+  const seated = new Set(Object.values(seats).filter(Boolean).map(String));
+  const pool = list.filter((j) => !seated.has(String(j.id)));
 
-  const assign = (seatId, jamaahId) => setSeats((s) => { const n = { ...s }; for (const k of Object.keys(n)) if (Number(n[k]) === Number(jamaahId)) delete n[k]; n[seatId] = Number(jamaahId); return n; });
+  const assign = (seatId, jamaahId) => setSeats((s) => { const n = { ...s }; for (const k of Object.keys(n)) if (String(n[k]) === String(jamaahId)) delete n[k]; n[seatId] = Number(jamaahId) || jamaahId; return n; });
   const clearSeat = (seatId) => setSeats((s) => { const n = { ...s }; delete n[seatId]; return n; });
   const swap = (a, b) => setSeats((s) => { const n = { ...s }; const va = n[a], vb = n[b]; if (vb == null) delete n[a]; else n[a] = vb; if (va == null) delete n[b]; else n[b] = va; return n; });
 
@@ -2441,6 +2445,7 @@ function DoaPage({ doa, setDoa, kategori, setKategori, bolehKelola = true }) {
   const [q, setQ] = useState("");
   const [kat, setKat] = useState("Semua");
   const [kelola, setKelola] = useState(false);
+  const [impor, setImpor] = useState(false);
 
   const hasil = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -2464,7 +2469,17 @@ function DoaPage({ doa, setDoa, kategori, setKategori, bolehKelola = true }) {
     <div className="fade">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div><h2 className="serif judul-hal" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Kumpulan Doa</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Panduan doa & bacaan manasik untuk pembimbing dan jamaah.</p></div>
-        <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}><Plus size={18} /> Tambah Doa</button>
+        {bolehKelola && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="btn" onClick={() => setImpor(true)}
+              style={{ background: "#fff", color: C.green, border: `1px solid ${C.green}44`, padding: "10px 15px", borderRadius: 12, fontSize: 13 }}>
+              <FileSpreadsheet size={17} /> Impor / Template
+            </button>
+            <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
+              <Plus size={18} /> Tambah Doa
+            </button>
+          </div>
+        )}
       </div>
 
       <FilterKategori q={q} setQ={setQ} kat={kat} setKat={setKat} kategori={kategori}
@@ -2514,6 +2529,12 @@ function DoaPage({ doa, setDoa, kategori, setKategori, bolehKelola = true }) {
       {kelola && (
         <KelolaKategoriModal kategori={kategori} setKategori={setKategori} items={doa} setItems={setDoa}
           judul="Kumpulan Doa" onClose={() => { setKelola(false); setKat("Semua"); }} />
+      )}
+
+      {impor && (
+        <ImporModal judul="Doa" namaBerkas="doa" kolom={KOLOM_DOA}
+          items={doa} setItems={setDoa} kategori={kategori} setKategori={setKategori}
+          onClose={() => { setImpor(false); setKat("Semua"); }} />
       )}
     </div>
   );
@@ -2955,6 +2976,7 @@ function FiqhPage({ fiqh, setFiqh, kategori, setKategori, bolehKelola = true }) 
   const [q, setQ] = useState("");
   const [kat, setKat] = useState("Semua");
   const [kelola, setKelola] = useState(false);
+  const [impor, setImpor] = useState(false);
 
   const hasil = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -2982,9 +3004,15 @@ function FiqhPage({ fiqh, setFiqh, kategori, setKategori, bolehKelola = true }) 
           <p style={{ margin: "3px 0 0", fontSize: 13, color: C.muted }}>Rujukan hukum manasik untuk menjawab pertanyaan jamaah di lapangan.</p>
         </div>
         {bolehKelola && (
-          <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
-            <Plus size={18} /> Tambah Catatan
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="btn" onClick={() => setImpor(true)}
+              style={{ background: "#fff", color: C.green, border: `1px solid ${C.green}44`, padding: "10px 15px", borderRadius: 12, fontSize: 13 }}>
+              <FileSpreadsheet size={17} /> Impor / Template
+            </button>
+            <button className="btn" onClick={() => { setEditing(null); setMode("form"); }} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
+              <Plus size={18} /> Tambah Catatan
+            </button>
+          </div>
         )}
       </div>
 
@@ -3038,6 +3066,12 @@ function FiqhPage({ fiqh, setFiqh, kategori, setKategori, bolehKelola = true }) 
       {kelola && (
         <KelolaKategoriModal kategori={kategori} setKategori={setKategori} items={fiqh} setItems={setFiqh}
           judul="Hukum Fiqh" onClose={() => { setKelola(false); setKat("Semua"); }} />
+      )}
+
+      {impor && (
+        <ImporModal judul="Hukum Fiqh" namaBerkas="hukum-fiqh" kolom={KOLOM_FIQH}
+          items={fiqh} setItems={setFiqh} kategori={kategori} setKategori={setKategori}
+          onClose={() => { setImpor(false); setKat("Semua"); }} />
       )}
     </div>
   );
@@ -3472,10 +3506,12 @@ function PengaturanPage({ pengguna, akunSaya, list = [], pid, periodeAktif }) {
   const [buat, setBuat] = useState(false);
   const [pesan, setPesan] = useState(null);
 
-  const urut = [...akun].sort((a, b) => {
+  const susun = (daftar) => [...daftar].sort((a, b) => {
     if (a.aktif !== b.aktif) return a.aktif ? -1 : 1;
     return (a.nama || a.email || "").localeCompare(b.nama || b.email || "", "id");
   });
+  const akunPembimbing = susun(akun.filter((a) => (a.peran || "Pembimbing") !== "Jamaah"));
+  const akunJamaah = susun(akun.filter((a) => a.peran === "Jamaah"));
 
   const sayaTerdaftar = akun.some((a) => a.id === pengguna.uid);
 
@@ -3608,6 +3644,9 @@ function PengaturanPage({ pengguna, akunSaya, list = [], pid, periodeAktif }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
         <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}>
           <Users size={16} /> Akun Terdaftar ({akun.length})
+          <span style={{ fontWeight: 600, textTransform: "none", letterSpacing: 0, color: C.muted, fontSize: 12 }}>
+            · {akunPembimbing.length} pembimbing, {akunJamaah.length} jamaah
+          </span>
         </span>
         <button className="btn" onClick={() => setBuat(true)} style={{ background: C.green, color: "#fff", padding: "10px 18px", borderRadius: 12 }}>
           <UserPlus size={17} /> Tambah Akun
@@ -3618,15 +3657,31 @@ function PengaturanPage({ pengguna, akunSaya, list = [], pid, periodeAktif }) {
         <div style={{ textAlign: "center", padding: 40, color: C.muted, fontSize: 13 }}>
           <Loader2 size={20} className="spin" color={C.green} /><div style={{ marginTop: 8 }}>Memuat daftar akun…</div>
         </div>
-      ) : urut.length === 0 ? (
+      ) : akun.length === 0 ? (
         <div style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 16, padding: "44px 20px", textAlign: "center", color: C.muted }}>
           <UserCog size={32} color={C.border} />
           <p style={{ marginTop: 12, fontWeight: 600 }}>Belum ada akun tercatat.</p>
           <p style={{ margin: "4px 0 0", fontSize: 13 }}>Tekan "Tambah Akun" untuk membuatkan akun pembimbing atau jamaah.</p>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {urut.map((a) => {
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {[
+            { judul: "Pembimbing", isi: akunPembimbing, ikon: ShieldCheck, warna: C.green },
+            { judul: "Jamaah", isi: akunJamaah, ikon: User, warna: "#2f7fa8" },
+          ].map((grup) => (
+            <div key={grup.judul}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 11, paddingBottom: 8, borderBottom: `2px solid ${grup.warna}22` }}>
+                <grup.ikon size={16} color={grup.warna} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: grup.warna, textTransform: "uppercase", letterSpacing: ".04em" }}>{grup.judul}</span>
+                <span style={{ background: grup.warna + "18", color: grup.warna, padding: "2px 9px", borderRadius: 99, fontSize: 11.5, fontWeight: 800 }}>{grup.isi.length}</span>
+              </div>
+              {grup.isi.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: C.muted, padding: "6px 0 4px", fontStyle: "italic" }}>
+                  Belum ada akun {grup.judul.toLowerCase()}.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {grup.isi.map((a) => {
             const P = PERAN[a.peran] || PERAN.Pembimbing;
             const sayaSendiri = a.id === pengguna.uid;
             return (
@@ -3718,8 +3773,12 @@ function PengaturanPage({ pengguna, akunSaya, list = [], pid, periodeAktif }) {
                   </button>
                 </div>
               </div>
-            );
-          })}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -3886,7 +3945,7 @@ function BuatAkunModal({ onClose, onBerhasil, sudahAda, list = [], pid, terpakai
 /* ============================================================
    KARTU SAYA — halaman pribadi untuk akun jamaah
    ============================================================ */
-function KartuSayaPage({ saya, simpan, siap, akunSaya, pengguna, tg, pid, periodeAktif }) {
+function KartuSayaPage({ saya, simpan, siap, akunSaya, pengguna, tg, pid, periodeAktif, hotel, onDarurat }) {
   const [mode, setMode] = useState("kartu");   // kartu | profil
   const [tulis, setTulis] = useState(false);
   const [ubahCat, setUbahCat] = useState(null);
@@ -3923,6 +3982,15 @@ function KartuSayaPage({ saya, simpan, siap, akunSaya, pengguna, tg, pid, period
 
   const catatan = [...(saya.catatanHarian || [])].sort((a, b) => (b.waktuISO || "").localeCompare(a.waktuISO || ""));
   const terakhir = catatan[0];
+
+  // Mencari kamar hotel yang memuat jamaah ini pada kota tertentu
+  const kamarSaya = (kota) => {
+    const semua = hotel?.kamar || [];
+    const k = semua.find((x) => (x.kota || "Makkah") === kota &&
+      (x.penghuni || []).some((id) => String(id) === String(saya.id)));
+    if (!k) return "";
+    return [k.namaHotel, `Kamar ${k.nomor}`].filter(Boolean).join(" · ");
+  };
 
   // Menyimpan catatan + mengirim ke Telegram + mencatat ke riwayat
   const simpanCatatan = async (c) => {
@@ -4020,10 +4088,34 @@ function KartuSayaPage({ saya, simpan, siap, akunSaya, pengguna, tg, pid, period
             [saya.tempatLahir, saya.tanggalLahir ? tglRingkas(saya.tanggalLahir) : ""].filter(Boolean).join(", ")
           } />
           <KartuInfo label="Jenis kelamin" isi={saya.jenisKelamin} />
-          <KartuInfo label="Telepon" isi={saya.telepon} />
-          <KartuInfo label="Rombongan" isi={saya.rombongan} />
+          <KartuInfo label="Hotel di Madinah" isi={kamarSaya("Madinah")} />
+          <KartuInfo label="Hotel di Makkah" isi={kamarSaya("Makkah")} />
         </div>
       </div>
+
+      {/* Tombol darurat — sengaja ditaruh di halaman depan agar cepat dijangkau */}
+      <button onClick={onDarurat}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 14, marginBottom: 16,
+          background: `linear-gradient(100deg, ${C.danger}, #8c2f2f)`, color: "#fff",
+          border: "none", borderRadius: 18, padding: "16px 18px", cursor: "pointer",
+          fontFamily: "inherit", textAlign: "left",
+          boxShadow: "0 8px 22px rgba(178,59,59,.32)",
+        }}>
+        <span style={{
+          width: 50, height: 50, borderRadius: "50%", background: "#ffffff26", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Siren size={26} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 16.5, fontWeight: 800, letterSpacing: ".01em" }}>TOMBOL DARURAT</span>
+          <span style={{ display: "block", fontSize: 12, opacity: .92, marginTop: 2, lineHeight: 1.45 }}>
+            Kirim lokasi Anda ke pembimbing & hubungi lewat WhatsApp
+          </span>
+        </span>
+        <ChevronRight size={22} style={{ flexShrink: 0, opacity: .8 }} />
+      </button>
 
       {kirim && (
         <div style={{
@@ -4078,7 +4170,7 @@ function KartuSayaPage({ saya, simpan, siap, akunSaya, pengguna, tg, pid, period
         <Send size={15} color={C.green} style={{ flexShrink: 0, marginTop: 2 }} />
         <span>
           Catatan yang Anda kirim akan muncul di grup Telegram pembimbing dan tersimpan di riwayat laporan.
-          Bila kondisi Anda mendesak, gunakan halaman <strong style={{ color: C.danger }}>Darurat</strong>.
+          Bila keadaan mendesak, tekan <strong style={{ color: C.danger }}>Tombol Darurat</strong> di bagian atas halaman ini.
         </span>
       </div>
 
@@ -4108,6 +4200,7 @@ function KartuInfo({ label, isi }) {
 function HotelPage({ list, kamar, setKamar, byId, bolehKelola = true }) {
   const [form, setForm] = useState(null);      // null | {} | kamar
   const [isiKamar, setIsiKamar] = useState(null);
+  const [saring, setSaring] = useState("Semua");
 
   const terisi = useMemo(() => {
     const m = {};
@@ -4170,6 +4263,21 @@ function HotelPage({ list, kamar, setKamar, byId, bolehKelola = true }) {
         </div>
       )}
 
+      {kamar.length > 0 && (
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
+          {["Semua", "Makkah", "Madinah"].map((k) => {
+            const on = saring === k;
+            const jml = k === "Semua" ? kamar.length : kamar.filter((x) => (x.kota || "Makkah") === k).length;
+            return (
+              <button key={k} className="btn" onClick={() => setSaring(k)}
+                style={{ background: on ? C.green : C.bg, color: on ? "#fff" : C.muted, border: `1px solid ${on ? C.green : C.border}`, padding: "6px 13px", borderRadius: 99, fontSize: 12.5 }}>
+                {k === "Makkah" ? "Hotel Makkah" : k === "Madinah" ? "Hotel Madinah" : "Semua"} ({jml})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {kamar.length === 0 ? (
         <div style={{ background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 16, padding: "46px 20px", textAlign: "center", color: C.muted, marginTop: 14 }}>
           <Hotel size={32} color={C.border} />
@@ -4178,7 +4286,7 @@ function HotelPage({ list, kamar, setKamar, byId, bolehKelola = true }) {
         </div>
       ) : (
         <div className="kartu-grid" style={{ marginTop: 14 }}>
-          {kamar.map((k) => {
+          {kamar.filter((k) => saring === "Semua" || (k.kota || "Makkah") === saring).map((k) => {
             const penghuni = (k.penghuni || []).map((id) => byId(id)).filter(Boolean);
             const kapasitas = Number(k.kapasitas) || 0;
             const penuh = kapasitas > 0 && penghuni.length >= kapasitas;
@@ -4190,7 +4298,11 @@ function HotelPage({ list, kamar, setKamar, byId, bolehKelola = true }) {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 16.5, fontWeight: 800, lineHeight: 1.2 }}>Kamar {k.nomor}</div>
+                    {k.namaHotel && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{k.namaHotel}</div>}
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                      <Badge bg={(k.kota || "Makkah") === "Madinah" ? "#e6f0f5" : C.greenSoft} color={(k.kota || "Makkah") === "Madinah" ? "#2f7fa8" : C.green} icon={Hotel}>
+                        {k.kota || "Makkah"}
+                      </Badge>
                       {k.lantai && <Badge bg={C.bg} color={C.muted}>Lantai {k.lantai}</Badge>}
                       {k.tipe && <Badge bg={C.goldSoft} color={C.goldDeep} icon={BedDouble}>{k.tipe}</Badge>}
                       <Badge bg={penuh ? C.greenSoft : C.bg} color={penuh ? C.green : C.muted} icon={Users}>
@@ -4269,7 +4381,7 @@ function HotelPage({ list, kamar, setKamar, byId, bolehKelola = true }) {
 }
 
 function KamarForm({ initial, onCancel, onSave }) {
-  const [f, setF] = useState(initial || { nomor: "", lantai: "", tipe: "Double", kapasitas: "2", catatan: "" });
+  const [f, setF] = useState(initial || { kota: "Makkah", namaHotel: "", nomor: "", lantai: "", tipe: "Double", kapasitas: "2", catatan: "" });
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const bisa = String(f.nomor).trim().length > 0;
 
@@ -4279,6 +4391,16 @@ function KamarForm({ initial, onCancel, onSave }) {
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, maxWidth: 560, margin: "0 auto" }}>
         <h2 className="serif" style={{ margin: "0 0 18px", fontSize: 22, fontWeight: 600 }}>{initial ? "Ubah Kamar" : "Tambah Kamar"}</h2>
         <Grid>
+          <div>
+            <Label req>Kota</Label>
+            <select className="field" style={inputStyle} value={f.kota || "Makkah"} onChange={(e) => set("kota", e.target.value)}>
+              <option>Makkah</option><option>Madinah</option><option>Lainnya</option>
+            </select>
+          </div>
+          <div>
+            <Label>Nama hotel</Label>
+            <input className="field" style={inputStyle} value={f.namaHotel || ""} onChange={(e) => set("namaHotel", e.target.value)} placeholder="cth. Anjum Makkah" />
+          </div>
           <div>
             <Label req>Nomor kamar</Label>
             <input className="field" style={inputStyle} value={f.nomor} onChange={(e) => set("nomor", e.target.value)} placeholder="cth. 812" />
@@ -4359,6 +4481,272 @@ function PilihPenghuniModal({ kamar, list, terisi, onClose, onPilih }) {
             );
           })}
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ============================================================
+   IMPOR & TEMPLATE (Doa / Hukum Fiqh)
+   Memakai berkas CSV agar bisa disunting di Excel maupun
+   Google Sheets tanpa aplikasi tambahan.
+   ============================================================ */
+
+// Menebak pemisah kolom: koma atau titik koma (Excel Indonesia sering memakai ';')
+function tebakPemisah(barisPertama) {
+  const koma = (barisPertama.match(/,/g) || []).length;
+  const titikKoma = (barisPertama.match(/;/g) || []).length;
+  return titikKoma > koma ? ";" : ",";
+}
+
+function uraiCSV(teks) {
+  const bersih = teks.replace(/^\uFEFF/, "");
+  const pemisah = tebakPemisah(bersih.split(/\r?\n/)[0] || "");
+  const baris = [];
+  let kolom = [], nilai = "", dalamKutip = false;
+
+  for (let i = 0; i < bersih.length; i++) {
+    const c = bersih[i];
+    if (dalamKutip) {
+      if (c === '"') {
+        if (bersih[i + 1] === '"') { nilai += '"'; i++; }
+        else dalamKutip = false;
+      } else nilai += c;
+    } else if (c === '"') dalamKutip = true;
+    else if (c === pemisah) { kolom.push(nilai); nilai = ""; }
+    else if (c === "\n") { kolom.push(nilai); baris.push(kolom); kolom = []; nilai = ""; }
+    else if (c !== "\r") nilai += c;
+  }
+  if (nilai !== "" || kolom.length) { kolom.push(nilai); baris.push(kolom); }
+  return baris.filter((r) => r.some((x) => String(x).trim() !== ""));
+}
+
+function keCSV(baris) {
+  return baris.map((r) => r.map((sel) => {
+    const t = String(sel ?? "");
+    return /["',;\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  }).join(",")).join("\r\n");
+}
+
+function unduhCSV(namaBerkas, baris) {
+  // Tanda BOM agar tulisan Arab tampil benar saat dibuka di Excel
+  const isi = "\uFEFF" + keCSV(baris);
+  const blob = new Blob([isi], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = namaBerkas;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const KOLOM_DOA = [
+  { kunci: "kategori", label: "Kategori", contoh: "Thawaf" },
+  { kunci: "judul", label: "Judul", contoh: "Doa Memulai Thawaf" },
+  { kunci: "arab", label: "Teks Arab", contoh: "بِسْمِ اللَّهِ وَاللَّهُ أَكْبَرُ" },
+  { kunci: "latin", label: "Bacaan Latin", contoh: "Bismillahi wallahu akbar" },
+  { kunci: "arti", label: "Arti", contoh: "Dengan nama Allah, Allah Maha Besar." },
+  { kunci: "catatan", label: "Catatan", contoh: "Dibaca saat memulai putaran pertama." },
+];
+
+const KOLOM_FIQH = [
+  { kunci: "kategori", label: "Kategori", contoh: "Rukun & Wajib" },
+  { kunci: "judul", label: "Judul", contoh: "Rukun Umroh" },
+  { kunci: "isi", label: "Uraian Hukum", contoh: "Rukun umroh ada empat: ihram, thawaf, sa'i, dan tahallul." },
+  { kunci: "dalil", label: "Dalil", contoh: "Disepakati mayoritas ulama." },
+  { kunci: "rujukan", label: "Rujukan Kitab", contoh: "Fikih Manasik — mazhab Syafi'i" },
+  { kunci: "catatan", label: "Catatan", contoh: "Tekankan saat manasik." },
+];
+
+function ImporModal({ judul, namaBerkas, kolom, items, setItems, kategori, setKategori, onClose }) {
+  const [tahap, setTahap] = useState("pilih");   // pilih | pratinjau | selesai
+  const [data, setData] = useState([]);
+  const [galat, setGalat] = useState("");
+  const [namaFile, setNamaFile] = useState("");
+  const [katBaru, setKatBaru] = useState([]);
+  const ref = useRef(null);
+
+  const unduhTemplate = () => {
+    const baris = [
+      kolom.map((k) => k.label),
+      kolom.map((k) => k.contoh),
+      kolom.map(() => ""),
+    ];
+    unduhCSV(`template-${namaBerkas}.csv`, baris);
+  };
+
+  const unduhDataSekarang = () => {
+    const baris = [kolom.map((k) => k.label), ...items.map((it) => kolom.map((k) => it[k.kunci] || ""))];
+    unduhCSV(`${namaBerkas}-${new Date().toISOString().slice(0, 10)}.csv`, baris);
+  };
+
+  const bacaBerkasCSV = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setGalat(""); setNamaFile(file.name);
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const baris = uraiCSV(String(rd.result));
+        if (baris.length < 2) throw new Error("Berkas kosong atau hanya berisi baris judul.");
+
+        // Cocokkan judul kolom dengan template (tidak peduli huruf besar/kecil)
+        const kepala = baris[0].map((x) => String(x).trim().toLowerCase());
+        const petaKolom = kolom.map((k) => {
+          const i = kepala.indexOf(k.label.toLowerCase());
+          return i >= 0 ? i : kepala.indexOf(k.kunci.toLowerCase());
+        });
+        if (petaKolom[1] < 0) throw new Error(`Kolom "${kolom[1].label}" tidak ditemukan. Gunakan berkas template.`);
+
+        const hasil = [];
+        baris.slice(1).forEach((r, i) => {
+          const obj = {};
+          kolom.forEach((k, ki) => { obj[k.kunci] = petaKolom[ki] >= 0 ? String(r[petaKolom[ki]] ?? "").trim() : ""; });
+          if (!obj[kolom[1].kunci]) return;             // judul wajib ada
+          hasil.push({ ...obj, id: Date.now() + i, berkas: null });
+        });
+        if (!hasil.length) throw new Error(`Tidak ada baris berisi ${kolom[1].label.toLowerCase()}.`);
+
+        const adaKat = new Set(kategori.map((k) => k.toLowerCase()));
+        const tambahan = [...new Set(hasil.map((h) => h.kategori).filter((k) => k && !adaKat.has(k.toLowerCase())))];
+
+        setData(hasil); setKatBaru(tambahan); setTahap("pratinjau");
+      } catch (err) {
+        setGalat(err.message || "Berkas tidak dapat dibaca.");
+      }
+    };
+    rd.onerror = () => setGalat("Gagal membaca berkas.");
+    rd.readAsText(file, "utf-8");
+    e.target.value = "";
+  };
+
+  const jalankanImpor = () => {
+    if (katBaru.length) setKategori([...kategori, ...katBaru]);
+    setItems(data);
+    setTahap("selesai");
+  };
+
+  return (
+    <Modal onClose={onClose} width={520}>
+      <div style={{ padding: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+            <FileSpreadsheet size={18} color={C.green} /> Impor {judul}
+          </h3>
+          <button className="btn iconbtn" onClick={onClose} style={{ background: C.bg, padding: 7, borderRadius: 9 }}><X size={16} /></button>
+        </div>
+
+        {tahap === "pilih" && (
+          <>
+            <p style={{ margin: "0 0 16px", fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>
+              Unduh template, isi lewat Excel atau Google Sheets, lalu unggah kembali ke sini.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 18 }}>
+              <button className="btn" onClick={unduhTemplate}
+                style={{ justifyContent: "flex-start", gap: 11, background: C.greenSoft, color: C.green, padding: "13px 15px", borderRadius: 12, textAlign: "left" }}>
+                <FileDown size={19} style={{ flexShrink: 0 }} />
+                <span>
+                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 800 }}>Unduh Template Kosong</span>
+                  <span style={{ display: "block", fontSize: 11.5, fontWeight: 500, opacity: .85 }}>Berisi judul kolom & satu baris contoh</span>
+                </span>
+              </button>
+
+              <button className="btn" onClick={unduhDataSekarang} disabled={!items.length}
+                style={{ justifyContent: "flex-start", gap: 11, background: items.length ? C.bg : "#fff", color: items.length ? C.ink : C.border, border: `1px solid ${C.border}`, padding: "13px 15px", borderRadius: 12, textAlign: "left" }}>
+                <DownloadIcon size={19} style={{ flexShrink: 0 }} />
+                <span>
+                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 800 }}>Unduh Data Saat Ini</span>
+                  <span style={{ display: "block", fontSize: 11.5, fontWeight: 500, opacity: .85 }}>
+                    {items.length ? `${items.length} data — berguna sebagai cadangan sebelum mengganti` : "Belum ada data"}
+                  </span>
+                </span>
+              </button>
+            </div>
+
+            <div style={{ height: 1, background: C.border, margin: "0 0 16px" }} />
+
+            <input ref={ref} type="file" accept=".csv,text/csv" onChange={bacaBerkasCSV} style={{ display: "none" }} />
+            <button className="btn" onClick={() => ref.current?.click()}
+              style={{ width: "100%", justifyContent: "center", gap: 9, background: C.green, color: "#fff", padding: "14px", borderRadius: 12, fontSize: 14 }}>
+              <Upload size={18} /> Pilih Berkas CSV
+            </button>
+
+            {galat && (
+              <div style={{ background: C.dangerSoft, color: C.danger, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, marginTop: 12, display: "flex", gap: 7 }}>
+                <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> {galat}
+              </div>
+            )}
+
+            <div style={{ background: C.goldSoft, color: C.goldDeep, borderRadius: 11, padding: "11px 13px", fontSize: 12, marginTop: 14, lineHeight: 1.6, display: "flex", gap: 8 }}>
+              <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span>Impor akan <strong>mengganti seluruh {judul.toLowerCase()} yang ada</strong> dengan isi berkas. Unduh data saat ini dulu bila ingin menyimpan cadangan.</span>
+            </div>
+          </>
+        )}
+
+        {tahap === "pratinjau" && (
+          <>
+            <div style={{ background: C.bg, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
+              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 4 }}>Berkas: <strong style={{ color: C.ink }}>{namaFile}</strong></div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.green }}>{data.length} baris siap diimpor</div>
+            </div>
+
+            <div style={{ background: C.dangerSoft, borderRadius: 12, padding: "12px 14px", marginBottom: 14, fontSize: 12.5, color: C.danger, lineHeight: 1.6, display: "flex", gap: 8 }}>
+              <AlertOctagon size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span>
+                <strong>{items.length} {judul.toLowerCase()} yang ada sekarang akan dihapus</strong> dan diganti dengan {data.length} data baru.
+                Tindakan ini tidak dapat dibatalkan.
+              </span>
+            </div>
+
+            {katBaru.length > 0 && (
+              <div style={{ background: C.greenSoft, borderRadius: 11, padding: "10px 13px", marginBottom: 14, fontSize: 12.5, color: C.green }}>
+                Kategori baru yang akan ditambahkan: <strong>{katBaru.join(", ")}</strong>
+              </div>
+            )}
+
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>
+              Pratinjau 3 baris pertama
+            </div>
+            <div style={{ maxHeight: 210, overflow: "auto", marginBottom: 18 }} className="kbih-scroll">
+              {data.slice(0, 3).map((d, i) => (
+                <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 11, padding: "10px 12px", marginBottom: 8, background: "#fff" }}>
+                  {d.kategori && <Badge bg={C.goldSoft} color={C.goldDeep}>{d.kategori}</Badge>}
+                  <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 5 }}>{d[kolom[1].kunci]}</div>
+                  {d.arab && <div dir="rtl" className="arab" style={{ fontSize: 22, marginTop: 5 }}>{d.arab}</div>}
+                  {d.isi && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>{String(d.isi).slice(0, 110)}{String(d.isi).length > 110 ? "…" : ""}</div>}
+                  {d.latin && <div style={{ fontSize: 12.5, color: C.muted, fontStyle: "italic", marginTop: 3 }}>{d.latin}</div>}
+                </div>
+              ))}
+              {data.length > 3 && <div style={{ fontSize: 12, color: C.muted, textAlign: "center", padding: 6 }}>…dan {data.length - 3} baris lainnya</div>}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button className="btn" onClick={() => { setTahap("pilih"); setData([]); }}
+                style={{ background: "#fff", color: C.muted, border: `1px solid ${C.border}`, padding: "11px 18px", borderRadius: 11 }}>Kembali</button>
+              <button className="btn" onClick={jalankanImpor}
+                style={{ background: C.danger, color: "#fff", padding: "11px 20px", borderRadius: 11 }}>
+                <Upload size={16} /> Ganti & Impor
+              </button>
+            </div>
+          </>
+        )}
+
+        {tahap === "selesai" && (
+          <div style={{ textAlign: "center", padding: "26px 10px 10px" }}>
+            <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.greenSoft, color: C.green, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+              <CheckCircle2 size={30} />
+            </div>
+            <div style={{ fontSize: 16.5, fontWeight: 800, marginBottom: 5 }}>Impor Berhasil</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.6 }}>
+              {data.length} {judul.toLowerCase()} sudah masuk dan tersimpan.
+              {katBaru.length > 0 && ` ${katBaru.length} kategori baru ikut ditambahkan.`}
+            </div>
+            <button className="btn" onClick={onClose}
+              style={{ background: C.green, color: "#fff", padding: "11px 26px", borderRadius: 12 }}>Selesai</button>
+          </div>
+        )}
       </div>
     </Modal>
   );
